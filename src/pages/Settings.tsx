@@ -48,26 +48,51 @@ export default function SettingsPage() {
           <h3 className="text-sm font-semibold text-foreground mb-4">Webhook Configuration</h3>
           <div className="space-y-4">
             <div>
-              <label className="text-xs font-medium text-foreground mb-1.5 block">Webhook URL</label>
-              <input type="url" placeholder="https://your-domain.com/webhook" className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20" />
+              <label className="text-xs font-medium text-foreground mb-1.5 block">Webhook URL (Copy to Meta Business Platform)</label>
+              <div className="flex gap-2">
+                <input 
+                  type="url" 
+                  value="https://vishva-backend.onrender.com/webhook"
+                  readOnly
+                  className="flex-1 px-3 py-2.5 text-sm rounded-lg border border-input bg-muted focus:outline-none focus:ring-2 focus:ring-ring/20" 
+                />
+                <button 
+                  onClick={() => {
+                    navigator.clipboard.writeText("https://vishva-backend.onrender.com/webhook");
+                  }}
+                  className="px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors active:scale-[0.97]"
+                >
+                  Copy
+                </button>
+              </div>
             </div>
             <div>
               <label className="text-xs font-medium text-foreground mb-1.5 block">Verify Token</label>
-              <input type="text" placeholder="your_verify_token" className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20" />
+              <div className="bg-muted/50 border border-muted rounded-lg p-3 mb-2">
+                <p className="text-xs text-muted-foreground mb-2">
+                  📋 To get your Verify Token:
+                </p>
+                <ol className="text-xs text-muted-foreground space-y-1 ml-4" style={{ listStyleType: 'decimal' }}>
+                  <li>Go to Render Dashboard → Backend Service → Environment</li>
+                  <li>Find <code className="bg-background px-1 py-0.5 rounded text-xs">WHATSAPP_WEBHOOK_TOKEN</code></li>
+                  <li>Copy the value and paste in Meta Business Platform</li>
+                </ol>
+              </div>
+              <div className="flex gap-2">
+                <input 
+                  type="password"
+                  placeholder="Enter token from Render Dashboard"
+                  className="flex-1 px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20" 
+                />
+                <button className="px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors active:scale-[0.97]">
+                  Show
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setWebhookStatus(webhookStatus === "connected" ? "idle" : "connected")}
-                className="px-4 py-2 text-sm font-medium rounded-lg border border-input text-foreground hover:bg-secondary transition-colors active:scale-[0.97]"
-              >
-                Verify Webhook
-              </button>
-              {webhookStatus === "connected" && (
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-success"><CheckCircle2 className="w-3.5 h-3.5" /> Verified</span>
-              )}
-              {webhookStatus === "error" && (
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive"><XCircle className="w-3.5 h-3.5" /> Failed</span>
-              )}
+            <div className="bg-info/10 border border-info/30 rounded-lg p-3">
+              <p className="text-xs text-info font-medium">
+                ℹ️ Use these values in Meta Business Platform → WhatsApp App → Configuration → Webhook
+              </p>
             </div>
           </div>
         </section>
