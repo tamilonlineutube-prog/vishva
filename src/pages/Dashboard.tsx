@@ -94,6 +94,9 @@ export default function Dashboard() {
         {/* Metrics */}
         <div className="grid grid-cols-5 gap-4" style={{ animationDelay: "0ms" }}>
           {metricCards.map((m, i) => (
+            <div
+              key={m.label}
+              className="bg-card rounded-xl p-5 card-shadow hover:card-shadow-hover transition-shadow animate-fade-in"
               style={{ animationDelay: `${i * 80}ms` }}
             >
               <div className="flex items-center justify-between mb-3">
