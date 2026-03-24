@@ -1,5 +1,7 @@
 import { AppLayout } from "@/components/AppLayout";
 import { dashboardMetrics, chartData, contacts } from "@/lib/mockData";
+import { useEffect, useState } from "react";
+import { socket } from "@/lib/socket";
 import {
   Send,
   MessageSquare,
@@ -24,26 +26,74 @@ import {
   Legend,
 } from "recharts";
 
-const metrics = [
-  { label: "Messages Sent", value: dashboardMetrics.totalSent.toLocaleString(), trend: "+12.5%", up: true, icon: Send },
-  { label: "Replies Received", value: dashboardMetrics.totalReplies.toLocaleString(), trend: "+8.2%", up: true, icon: MessageSquare },
-  { label: "Active Conversations", value: dashboardMetrics.activeConversations.toString(), trend: "-3", up: false, icon: MessagesSquare },
-  { label: "Campaigns Sent", value: dashboardMetrics.campaignsSent.toString(), trend: "+1", up: true, icon: Megaphone },
-  { label: "Conversion Rate", value: `${dashboardMetrics.conversionRate}%`, trend: "+2.1%", up: true, icon: TrendingUp },
-];
-
-const hotLeads = contacts.filter((c) => c.tags.includes("Hot") || c.tags.includes("Interested"));
+interface DashboardMetrics {
+  totalSent: number;
+  totalReplies: number;
+  activeConversations: number;
+  campaignsSent: number;
+  conversionRate: number;
+}
 
 export default function Dashboard() {
+  const [dashMetrics, setDashMetrics] = useState<DashboardMetrics>({
+    totalSent: dashboardMetrics.totalSent,
+    totalReplies: dashboardMetrics.totalReplies,
+    activeConversations: dashboardMetrics.activeConversations,
+    campaignsSent: dashboardMetrics.campaignsSent,
+    conversionRate: dashboardMetrics.conversionRate,
+  });
+
+  useEffect(() => {
+    console.log("[Dashboard] Setting up Socket.io listeners for metrics");
+
+    const handleMessageSent = (data: any) => {
+      console.log("[Dashboard] Message sent event:", data);
+      setDashMetrics((prev) => ({
+        ...prev,
+        totalSent: prev.totalSent + 1,
+        activeConversations: prev.activeConversations + 1,
+      }));
+    };
+
+    const handleMessageReceived = (data: any) => {
+      console.log("[Dashboard] Message received event:", data);
+      setDashMetrics((prev) => ({
+        ...prev,
+        totalReplies: prev.totalReplies + 1,
+      }));
+    };
+
+    socket.on("message_sent", handleMessageSent);
+    socket.on("new_message", handleMessageReceived);
+    socket.on("message_delivered", () => {
+      console.log("[Dashboard] Message delivered");
+    });
+
+    console.log("[Dashboard] Socket.io listeners attached");
+
+    return () => {
+      console.log("[Dashboard] Cleaning up Socket.io listeners");
+      socket.off("message_sent", handleMessageSent);
+      socket.off("new_message", handleMessageReceived);
+    };
+  }, []);
+
+  const metricCards = [
+    { label: "Messages Sent", value: dashMetrics.totalSent.toLocaleString(), trend: "+12.5%", up: true, icon: Send },
+    { label: "Replies Received", value: dashMetrics.totalReplies.toLocaleString(), trend: "+8.2%", up: true, icon: MessageSquare },
+    { label: "Active Conversations", value: dashMetrics.activeConversations.toString(), trend: "-3", up: false, icon: MessagesSquare },
+    { label: "Campaigns Sent", value: dashMetrics.campaignsSent.toString(), trend: "+1", up: true, icon: Megaphone },
+    { label: "Conversion Rate", value: `${dashMetrics.conversionRate}%`, trend: "+2.1%", up: true, icon: TrendingUp },
+  ];
+
+  const hotLeads = contacts.filter((c) => c.tags.includes("Hot") || c.tags.includes("Interested"));
+
   return (
     <AppLayout title="Dashboard">
       <div className="p-6 space-y-6">
         {/* Metrics */}
         <div className="grid grid-cols-5 gap-4" style={{ animationDelay: "0ms" }}>
-          {metrics.map((m, i) => (
-            <div
-              key={m.label}
-              className="bg-card rounded-xl p-5 card-shadow hover:card-shadow-hover transition-shadow animate-fade-in"
+          {metricCards.map((m, i) => (
               style={{ animationDelay: `${i * 80}ms` }}
             >
               <div className="flex items-center justify-between mb-3">

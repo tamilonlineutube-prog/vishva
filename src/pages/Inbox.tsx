@@ -53,19 +53,28 @@ export default function Inbox() {
     const handleNewMessage = (incomingData: any) => {
       console.log("[Inbox] New message received:", incomingData);
 
-      // Extract message details
-      const {
-        phoneNumber,
-        customerName = "Unknown",
-        content,
-        messageType = "text",
-        timestamp = new Date().toLocaleTimeString(),
-      } = incomingData;
+      // Handle both old and new message formats
+      // New format from campaign: { from, to, message, timestamp, status, contactName }
+      // Old format: { phoneNumber, customerName, content, messageType, timestamp }
+      const phoneNumber = incomingData.to || incomingData.phoneNumber;
+      const content = incomingData.message || incomingData.content || "";
+      const customerName = incomingData.contactName || incomingData.from || incomingData.customerName || "Unknown";
+      const messageType = incomingData.type || incomingData.messageType || "text";
+      const timestamp = incomingData.timestamp || new Date().toLocaleTimeString();
 
       if (!phoneNumber) {
-        console.warn("[Inbox] Message missing phone number");
+        console.warn("[Inbox] Message missing phone number:", incomingData);
         return;
       }
+
+      if (!content) {
+        console.warn("[Inbox] Message missing content:", incomingData);
+        return;
+      }
+
+      console.log(
+        `[Inbox] Processing message from ${customerName} (${phoneNumber}): ${content.substring(0, 50)}...`
+      );
 
       // Update contacts list and conversations
       setContacts((prevContacts) => {
@@ -95,6 +104,7 @@ export default function Inbox() {
             unread: 1,
             sessionActive: true,
           };
+          console.log(`[Inbox] Created new contact: ${customerName} (${phoneNumber})`);
           return [newContact, ...prevContacts];
         }
       });
@@ -103,7 +113,7 @@ export default function Inbox() {
       setConversations((prevConversations) => {
         // Find contact to get its ID (search in current contacts state)
         const contactMatch = findContactByPhone(phoneNumber, contacts);
-        const contactId = contactMatch ? contactMatch.id : `contact-${Date.now()}`;
+        const contactId = contactMatch ? contactMatch.id : `contact-${phoneNumber}`;
 
         const existingMessages = prevConversations[contactId] || [];
         const newMessage: Message = {
@@ -112,6 +122,10 @@ export default function Inbox() {
           sender: "customer",
           time: timestamp,
         };
+
+        console.log(
+          `[Inbox] Adding message to contact ${contactId}. Total messages: ${existingMessages.length + 1}`
+        );
 
         return {
           ...prevConversations,

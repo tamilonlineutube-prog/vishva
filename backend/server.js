@@ -103,7 +103,7 @@ app.post('/api/send-message', async (req, res) => {
 // Send WhatsApp campaign to multiple contacts
 app.post('/api/send-campaign', async (req, res) => {
   try {
-    const { contacts, templateId, templateName, templateBody } = req.body;
+    const { contacts, templateName, templateBody, accessToken, phoneNumberId } = req.body;
 
     if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
       return res.status(400).json({
@@ -120,9 +120,11 @@ app.post('/api/send-campaign', async (req, res) => {
     console.log(`\n📨 [Campaign] Starting campaign send`);
     console.log(`   Template: ${templateName}`);
     console.log(`   Contacts: ${contacts.length}`);
+    console.log(`   Using Meta API: ${accessToken && phoneNumberId ? 'YES' : 'NO (simulation only)'}`);
 
     let successCount = 0;
     let failureCount = 0;
+    const failedContacts = [];
 
     // Send message to each contact
     for (const contact of contacts) {
@@ -131,6 +133,7 @@ app.post('/api/send-campaign', async (req, res) => {
 
         if (!phone) {
           failureCount++;
+          failedContacts.push({ name, phone, reason: 'Empty phone number' });
           continue;
         }
 
@@ -140,33 +143,83 @@ app.post('/api/send-campaign', async (req, res) => {
         // Create message with contact name
         const message = templateBody.replace(/{{\s*name\s*}}/g, name || 'User');
 
-        console.log(`   ✓ Queuing message to ${name} (${normalizedPhone})`);
+        // If WhatsApp API credentials provided, send via Meta API
+        if (accessToken && phoneNumberId) {
+          try {
+            console.log(`   📤 Sending to ${name} (${normalizedPhone}) via Meta API...`);
+            
+            const response = await axios.post(
+              `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
+              {
+                messaging_product: 'whatsapp',
+                to: normalizedPhone,
+                type: 'text',
+                text: {
+                  body: message,
+                },
+              },
+              {
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                  'Content-Type': 'application/json',
+                },
+              }
+            );
 
-        // TODO: Actually send via WhatsApp API (Twilio, Meta, etc.)
-        // For now, emit via Socket.io to simulate sending
+            console.log(`   ✓ Message sent to ${normalizedPhone}: ${response.data.messages[0].id}`);
 
-        // Emit real-time update to connected clients
-        io.emit('new_message', {
-          from: 'WhatsApp Campaign',
-          to: normalizedPhone,
-          message: message,
-          timestamp: new Date().toISOString(),
-          status: 'sent',
-          contactName: name,
-          templateName: templateName,
-        });
+            // Emit real-time update to connected clients
+            io.emit('new_message', {
+              from: name,
+              to: normalizedPhone,
+              message: message,
+              timestamp: new Date().toISOString(),
+              status: 'sent',
+              contactName: name,
+              templateName: templateName,
+              messageId: response.data.messages[0].id,
+            });
 
-        // Also emit for dashboard metrics
-        io.emit('message_sent', {
-          phone: normalizedPhone,
-          name: name,
-          timestamp: new Date().toISOString(),
-        });
+            // Also emit for dashboard metrics
+            io.emit('message_sent', {
+              phone: normalizedPhone,
+              name: name,
+              timestamp: new Date().toISOString(),
+            });
 
-        successCount++;
+            successCount++;
+          } catch (apiError) {
+            console.error(`   ✗ Meta API error for ${normalizedPhone}:`, apiError.response?.data || apiError.message);
+            failureCount++;
+            failedContacts.push({ name, phone, reason: apiError.response?.data?.error?.message || apiError.message });
+          }
+        } else {
+          // Fallback: Just emit via Socket.io for simulation
+          console.log(`   ✓ Queuing message to ${name} (${normalizedPhone}) [Simulation]`);
+
+          io.emit('new_message', {
+            from: name,
+            to: normalizedPhone,
+            message: message,
+            timestamp: new Date().toISOString(),
+            status: 'sent',
+            contactName: name,
+            templateName: templateName,
+            simulation: true,
+          });
+
+          io.emit('message_sent', {
+            phone: normalizedPhone,
+            name: name,
+            timestamp: new Date().toISOString(),
+          });
+
+          successCount++;
+        }
       } catch (contactError) {
         console.error(`   ✗ Error processing contact:`, contactError.message);
         failureCount++;
+        failedContacts.push({ name: contact.name, phone: contact.phone, reason: contactError.message });
       }
     }
 
@@ -180,6 +233,7 @@ app.post('/api/send-campaign', async (req, res) => {
         totalContacts: contacts.length,
         successCount,
         failureCount,
+        failedContacts,
         timestamp: new Date().toISOString(),
       },
     });

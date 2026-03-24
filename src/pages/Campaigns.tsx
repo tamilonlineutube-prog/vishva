@@ -1,13 +1,23 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { campaigns, templates } from "@/lib/mockData";
-import { Upload, Send, CheckCircle2, Loader2, XCircle, ChevronRight, Download, File } from "lucide-react";
+import { Upload, Send, CheckCircle2, Loader2, XCircle, ChevronRight, Download, File, AlertTriangle } from "lucide-react";
 
 const steps = ["Upload Contacts", "Select Template", "Map Variables", "Review & Send"];
 
 interface Contact {
   name: string;
   phone: string;
+}
+
+interface CampaignHistory {
+  id: string;
+  templateName: string;
+  totalContacts: number;
+  successCount: number;
+  failureCount: number;
+  timestamp: string;
+  status: 'success' | 'partial' | 'failed';
 }
 
 export default function Campaigns() {
@@ -17,7 +27,16 @@ export default function Campaigns() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
+  const [campaignHistory, setCampaignHistory] = useState<CampaignHistory[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load campaign history from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("campaignHistory");
+    if (saved) {
+      setCampaignHistory(JSON.parse(saved));
+    }
+  }, []);
 
   const downloadSampleExcel = () => {
     // Simple CSV format (Excel compatible)
@@ -78,6 +97,27 @@ Vikram Singh,+91 54321 09876`;
         return;
       }
 
+      // Get WhatsApp credentials from localStorage
+      const savedConfig = localStorage.getItem("whatsappConfig");
+      let accessToken = "";
+      let phoneNumberId = "";
+      if (savedConfig) {
+        const config = JSON.parse(savedConfig);
+        accessToken = config.accessToken || "";
+        phoneNumberId = config.phoneNumberId || "";
+      }
+
+      // Warn if no credentials configured
+      if (!accessToken || !phoneNumberId) {
+        const proceed = confirm(
+          "WhatsApp credentials not configured. Messages will be simulated only. Configure in Settings to send real messages. Continue?"
+        );
+        if (!proceed) {
+          setIsSending(false);
+          return;
+        }
+      }
+
       // Send campaign via backend
       const response = await fetch("https://vishva-backend.onrender.com/api/send-campaign", {
         method: "POST",
@@ -92,6 +132,8 @@ Vikram Singh,+91 54321 09876`;
             name: c.name,
             phone: c.phone,
           })),
+          accessToken,
+          phoneNumberId,
         }),
       });
 
@@ -105,6 +147,21 @@ Vikram Singh,+91 54321 09876`;
 
       const result = await response.json();
       console.log("[Campaign] Sent successfully:", result);
+
+      // Add to campaign history
+      const newCampaign: CampaignHistory = {
+        id: Date.now().toString(),
+        templateName: template.name,
+        totalContacts: contacts.length,
+        successCount: result.data.successCount,
+        failureCount: result.data.failureCount,
+        timestamp: new Date().toLocaleString(),
+        status: result.data.failureCount === 0 ? 'success' : result.data.successCount > 0 ? 'partial' : 'failed',
+      };
+
+      const updated = [newCampaign, ...campaignHistory];
+      setCampaignHistory(updated);
+      localStorage.setItem("campaignHistory", JSON.stringify(updated));
 
       // Show success screen
       setSendSuccess(true);
@@ -282,39 +339,44 @@ Vikram Singh,+91 54321 09876`;
             <h3 className="text-sm font-semibold text-foreground">Campaign History</h3>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Campaign</th>
-                  <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                  <th className="text-right px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Sent</th>
-                  <th className="text-right px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Delivered</th>
-                  <th className="text-right px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Read</th>
-                  <th className="text-right px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Failed</th>
-                  <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {campaigns.map((c) => (
-                  <tr key={c.id} className="border-b border-border last:border-0 hover:bg-secondary/30 transition-colors">
-                    <td className="px-6 py-3.5 font-medium text-foreground">{c.name}</td>
-                    <td className="px-6 py-3.5">
-                      <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${
-                        c.status === "Completed" ? "bg-success/10 text-success" : "bg-info/10 text-info"
-                      }`}>
-                        {c.status === "Completed" ? <CheckCircle2 className="w-3 h-3" /> : <Loader2 className="w-3 h-3 animate-spin" />}
-                        {c.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3.5 text-right tabular-nums text-foreground">{c.sent.toLocaleString()}</td>
-                    <td className="px-6 py-3.5 text-right tabular-nums text-foreground">{c.delivered.toLocaleString()}</td>
-                    <td className="px-6 py-3.5 text-right tabular-nums text-foreground">{c.read.toLocaleString()}</td>
-                    <td className="px-6 py-3.5 text-right tabular-nums text-destructive">{c.failed.toLocaleString()}</td>
-                    <td className="px-6 py-3.5 text-muted-foreground">{c.date}</td>
+            {campaignHistory.length === 0 ? (
+              <div className="px-6 py-8 text-center">
+                <File className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">No campaigns sent yet. Start creating your first campaign!</p>
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Campaign</th>
+                    <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                    <th className="text-right px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Sent</th>
+                    <th className="text-right px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Delivered</th>
+                    <th className="text-right px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Failed</th>
+                    <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Date</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {campaignHistory.map((campaign) => (
+                    <tr key={campaign.id} className="border-b border-border last:border-0 hover:bg-secondary/30 transition-colors">
+                      <td className="px-6 py-3.5 font-medium text-foreground">{campaign.templateName}</td>
+                      <td className="px-6 py-3.5">
+                        <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${
+                          campaign.status === 'success' ? 'bg-success/10 text-success' : campaign.status === 'partial' ? 'bg-warning/10 text-warning' : 'bg-destructive/10 text-destructive'
+                        }`}>
+                          {campaign.status === 'success' ? <CheckCircle2 className="w-3 h-3" /> : campaign.status === 'partial' ? <AlertTriangle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                          {campaign.status === 'success' ? 'Sent' : campaign.status === 'partial' ? 'Partial' : 'Failed'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3.5 text-right tabular-nums text-foreground">{campaign.successCount}</td>
+                      <td className="px-6 py-3.5 text-right tabular-nums text-foreground">-</td>
+                      <td className="px-6 py-3.5 text-right tabular-nums text-destructive">{campaign.failureCount}</td>
+                      <td className="px-6 py-3.5 text-muted-foreground text-xs">{campaign.timestamp}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       </div>
