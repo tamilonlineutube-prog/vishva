@@ -15,6 +15,8 @@ export default function Campaigns() {
   const [selectedTemplate, setSelectedTemplate] = useState("");
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [isSending, setIsSending] = useState(false);
+  const [sendSuccess, setSendSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const downloadSampleExcel = () => {
@@ -63,6 +65,23 @@ Vikram Singh,+91 54321 09876`;
       setStep(1); // Move to next step after upload
     };
     reader.readAsText(file);
+  };
+
+  const handleSendCampaign = async () => {
+    setIsSending(true);
+    // Simulate API call to send campaign
+    setTimeout(() => {
+      setIsSending(false);
+      setSendSuccess(true);
+      // Stay on success screen for a bit, then reset
+      setTimeout(() => {
+        setStep(0);
+        setSendSuccess(false);
+        setSelectedTemplate("");
+        setUploadedFile(null);
+        setContacts([]);
+      }, 3000);
+    }, 2000);
   };
 
   return (
@@ -178,9 +197,40 @@ Vikram Singh,+91 54321 09876`;
               </div>
               <div className="flex gap-2">
                 <button onClick={() => setStep(2)} className="px-4 py-2 text-sm font-medium rounded-lg border border-input text-foreground hover:bg-secondary transition-colors">Back</button>
-                <button onClick={() => setStep(0)} className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity active:scale-[0.97] inline-flex items-center gap-2">
-                  <Send className="w-4 h-4" /> Send Campaign
+                <button 
+                  onClick={handleSendCampaign}
+                  disabled={isSending}
+                  className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity active:scale-[0.97] inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" /> Send Campaign
+                    </>
+                  )}
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* Success State */}
+          {sendSuccess && (
+            <div className="space-y-4 max-w-md">
+              <div className="bg-success/10 border-2 border-success rounded-xl p-6 text-center animate-fade-in">
+                <CheckCircle2 className="w-12 h-12 text-success mx-auto mb-3" />
+                <h4 className="text-sm font-semibold text-foreground mb-2">Campaign Sent Successfully! 🎉</h4>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Your campaign with {contacts.length} contacts has been queued for sending.
+                </p>
+                <div className="bg-accent/30 rounded-lg p-3 text-xs text-muted-foreground mb-4">
+                  <p>Template: {templates.find(t => t.id === selectedTemplate)?.name}</p>
+                  <p>Status: Scheduled</p>
+                  <p>Sent Time: {new Date().toLocaleTimeString()}</p>
+                </div>
+                <p className="text-xs text-muted-foreground">Redirecting to new campaign in 3 seconds...</p>
               </div>
             </div>
           )}
