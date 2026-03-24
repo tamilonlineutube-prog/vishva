@@ -1,13 +1,62 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { campaigns, templates } from "@/lib/mockData";
-import { Upload, Send, CheckCircle2, Loader2, XCircle, ChevronRight } from "lucide-react";
+import { Upload, Send, CheckCircle2, Loader2, XCircle, ChevronRight, Download, File } from "lucide-react";
 
 const steps = ["Upload Contacts", "Select Template", "Map Variables", "Review & Send"];
+
+interface Contact {
+  name: string;
+  phone: string;
+}
 
 export default function Campaigns() {
   const [step, setStep] = useState(0);
   const [selectedTemplate, setSelectedTemplate] = useState("");
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const downloadSampleExcel = () => {
+    // Simple CSV format (Excel compatible)
+    const csvContent = `Name,Phone Number
+Rahul Sharma,+91 98765 43210
+Priya Patel,+91 87654 32109
+Amit Kumar,+91 76543 21098
+Sneha Reddy,+91 65432 10987
+Vikram Singh,+91 54321 09876`;
+
+    const element = document.createElement("a");
+    element.setAttribute("href", "data:text/csv;charset=utf-8," + encodeURIComponent(csvContent));
+    element.setAttribute("download", "sample_contacts.csv");
+    element.style.display = "none";
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploadedFile(file);
+
+    // Parse CSV/Excel file
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      const lines = content.split("\n").slice(1); // Skip header
+      const parsedContacts: Contact[] = lines
+        .filter((line) => line.trim())
+        .map((line) => {
+          const [name, phone] = line.split(",").map((col) => col.trim());
+          return { name, phone };
+        });
+      setContacts(parsedContacts);
+      setStep(1); // Move to next step after upload
+    };
+    reader.readAsText(file);
+  };
 
   return (
     <AppLayout title="Campaigns">
@@ -37,12 +86,37 @@ export default function Campaigns() {
               <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
               <p className="text-sm font-medium text-foreground mb-1">Upload CSV or Excel file</p>
               <p className="text-xs text-muted-foreground mb-4">Columns: Name, Phone Number</p>
-              <button
-                onClick={() => setStep(1)}
-                className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity active:scale-[0.97]"
-              >
-                Upload File
-              </button>
+              
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity active:scale-[0.97] inline-flex items-center justify-center gap-2"
+                >
+                  <Upload className="w-4 h-4" /> Choose File
+                </button>
+
+                {uploadedFile && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-success/10 border border-success/30 rounded-lg">
+                    <CheckCircle2 className="w-4 h-4 text-success" />
+                    <span className="text-xs text-success">{uploadedFile.name} ({contacts.length} contacts)</span>
+                  </div>
+                )}
+
+                <button
+                  onClick={downloadSampleExcel}
+                  className="px-4 py-2 text-sm font-medium rounded-lg border border-input text-foreground hover:bg-secondary transition-colors inline-flex items-center justify-center gap-2"
+                >
+                  <Download className="w-4 h-4" /> Download Sample
+                </button>
+              </div>
             </div>
           )}
 
@@ -92,8 +166,8 @@ export default function Campaigns() {
             <div className="space-y-4 max-w-md">
               <div className="bg-accent/50 rounded-lg p-4 text-sm">
                 <p className="font-medium text-foreground mb-2">Campaign Summary</p>
-                <p className="text-muted-foreground">Contacts: <span className="text-foreground font-medium">247</span></p>
-                <p className="text-muted-foreground">Template: <span className="text-foreground font-medium">loan_offer_v2</span></p>
+                <p className="text-muted-foreground">Contacts: <span className="text-foreground font-medium">{contacts.length}</span></p>
+                <p className="text-muted-foreground">Template: <span className="text-foreground font-medium">{templates.find(t => t.id === selectedTemplate)?.name || selectedTemplate}</span></p>
               </div>
               <div className="flex gap-2">
                 <button onClick={() => setStep(2)} className="px-4 py-2 text-sm font-medium rounded-lg border border-input text-foreground hover:bg-secondary transition-colors">Back</button>
