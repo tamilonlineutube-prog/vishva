@@ -2,7 +2,7 @@ import { io } from "socket.io-client";
 
 // Initialize Socket.io connection to backend
 // The URL should match your backend server address
-export const socket = io("http://localhost:5000", {
+export const socket = io("https://vishva-backend.onrender.com", {
   transports: ["websocket"],
   reconnection: true,
   reconnectionAttempts: 5,
