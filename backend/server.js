@@ -120,6 +120,8 @@ app.post('/api/send-campaign', async (req, res) => {
     console.log(`\n📨 [Campaign] Starting campaign send`);
     console.log(`   Template: ${templateName}`);
     console.log(`   Contacts: ${contacts.length}`);
+    console.log(`   Access Token: ${accessToken ? accessToken.substring(0, 20) + '...' : 'NOT PROVIDED'}`);
+    console.log(`   Phone Number ID: ${phoneNumberId ? phoneNumberId : 'NOT PROVIDED'}`);
     console.log(`   Using Meta API: ${accessToken && phoneNumberId ? 'YES' : 'NO (simulation only)'}`);
 
     let successCount = 0;
@@ -132,6 +134,7 @@ app.post('/api/send-campaign', async (req, res) => {
         const { name, phone } = contact;
 
         if (!phone) {
+          console.log(`   ⚠️  Skipping contact with empty phone: ${name}`);
           failureCount++;
           failedContacts.push({ name, phone, reason: 'Empty phone number' });
           continue;
@@ -140,19 +143,37 @@ app.post('/api/send-campaign', async (req, res) => {
         // Normalize phone number (remove spaces, special chars except +)
         const normalizedPhone = phone.replace(/\s/g, '').replace(/[^\d+]/g, '');
 
+        if (!normalizedPhone) {
+          console.log(`   ⚠️  Skipping contact with invalid phone: ${name} (${phone})`);
+          failureCount++;
+          failedContacts.push({ name, phone, reason: 'Invalid phone number format' });
+          continue;
+        }
+
+        // For Meta API, convert to format: country code + number (digits only, no +)
+        // E.g., +1-234-567-8900 becomes 12345678900
+        const metaFormattedPhone = normalizedPhone.replace(/[^\d]/g, '');
+        
+        if (!metaFormattedPhone || metaFormattedPhone.length < 7) {
+          console.log(`   ⚠️  Skipping contact with too-short phone: ${name} (${phone} -> ${metaFormattedPhone})`);
+          failureCount++;
+          failedContacts.push({ name, phone, reason: 'Phone number too short' });
+          continue;
+        }
+
         // Create message with contact name
         const message = templateBody.replace(/{{\s*name\s*}}/g, name || 'User');
 
         // If WhatsApp API credentials provided, send via Meta API
         if (accessToken && phoneNumberId) {
           try {
-            console.log(`   📤 Sending to ${name} (${normalizedPhone}) via Meta API...`);
+            console.log(`   📤 Sending to ${name} (${metaFormattedPhone}) via Meta API...`);
             
             const response = await axios.post(
               `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
               {
                 messaging_product: 'whatsapp',
-                to: normalizedPhone,
+                to: metaFormattedPhone,
                 type: 'text',
                 text: {
                   body: message,
@@ -166,12 +187,12 @@ app.post('/api/send-campaign', async (req, res) => {
               }
             );
 
-            console.log(`   ✓ Message sent to ${normalizedPhone}: ${response.data.messages[0].id}`);
+            console.log(`   ✓ Message sent to ${metaFormattedPhone}: ${response.data.messages[0].id}`);
 
             // Emit real-time update to connected clients
             io.emit('new_message', {
               from: name,
-              to: normalizedPhone,
+              to: metaFormattedPhone,
               message: message,
               timestamp: new Date().toISOString(),
               status: 'sent',
@@ -182,24 +203,27 @@ app.post('/api/send-campaign', async (req, res) => {
 
             // Also emit for dashboard metrics
             io.emit('message_sent', {
-              phone: normalizedPhone,
+              phone: metaFormattedPhone,
               name: name,
               timestamp: new Date().toISOString(),
             });
 
             successCount++;
           } catch (apiError) {
-            console.error(`   ✗ Meta API error for ${normalizedPhone}:`, apiError.response?.data || apiError.message);
+            console.error(`   ✗ Meta API error for ${name} (${metaFormattedPhone}):`, {
+              status: apiError.response?.status,
+              message: apiError.response?.data?.error?.message || apiError.message,
+            });
             failureCount++;
             failedContacts.push({ name, phone, reason: apiError.response?.data?.error?.message || apiError.message });
           }
         } else {
           // Fallback: Just emit via Socket.io for simulation
-          console.log(`   ✓ Queuing message to ${name} (${normalizedPhone}) [Simulation]`);
+          console.log(`   ✅ Simulating message to ${name} (${metaFormattedPhone}) [No API credentials]`);
 
           io.emit('new_message', {
             from: name,
-            to: normalizedPhone,
+            to: metaFormattedPhone,
             message: message,
             timestamp: new Date().toISOString(),
             status: 'sent',
@@ -209,15 +233,16 @@ app.post('/api/send-campaign', async (req, res) => {
           });
 
           io.emit('message_sent', {
-            phone: normalizedPhone,
+            phone: metaFormattedPhone,
             name: name,
             timestamp: new Date().toISOString(),
           });
 
           successCount++;
+          console.log(`   ✓ Simulated message added to queue`);
         }
       } catch (contactError) {
-        console.error(`   ✗ Error processing contact:`, contactError.message);
+        console.error(`   ✗ Error processing contact ${contact.name}:`, contactError.message);
         failureCount++;
         failedContacts.push({ name: contact.name, phone: contact.phone, reason: contactError.message });
       }

@@ -39,13 +39,13 @@ export default function Campaigns() {
   }, []);
 
   const downloadSampleExcel = () => {
-    // Simple CSV format (Excel compatible)
+    // CSV format with proper phone numbers (country code + number)
     const csvContent = `Name,Phone Number
-Rahul Sharma,+91 98765 43210
-Priya Patel,+91 87654 32109
-Amit Kumar,+91 76543 21098
-Sneha Reddy,+91 65432 10987
-Vikram Singh,+91 54321 09876`;
+John Doe,919876543210
+Priya Singh,918765432109
+Amit Kumar,917654321098
+Sneha Reddy,916543210987
+Vikram Patel,915432109876`;
 
     const element = document.createElement("a");
     element.setAttribute("href", "data:text/csv;charset=utf-8," + encodeURIComponent(csvContent));
@@ -65,25 +65,83 @@ Vikram Singh,+91 54321 09876`;
     // Parse CSV/Excel file
     const reader = new FileReader();
     reader.onload = (e) => {
-      const content = e.target?.result as string;
-      // Handle different line endings (\r\n for Windows, \n for Unix)
-      const lines = content.split(/\r?\n/).slice(1); // Skip header
-      const parsedContacts: Contact[] = lines
-        .filter((line) => line.trim()) // Remove empty lines
-        .map((line) => {
-          const [name, phone] = line.split(",").map((col) => col.trim());
-          // Only add if both name and phone exist
-          if (name && phone) {
-            return { name, phone };
-          }
-          return null;
-        })
-        .filter((contact) => contact !== null) as Contact[]; // Remove null entries
-      
-      setContacts(parsedContacts);
-      setStep(1); // Move to next step after upload
+      try {
+        const content = e.target?.result as string;
+        
+        // Log for debugging
+        console.log("[CSV] File content length:", content.length);
+        console.log("[CSV] First 200 chars:", content.substring(0, 200));
+
+        // Handle different line endings (\r\n for Windows, \n for Unix)
+        const lines = content.split(/\r?\n/).filter((line) => line.trim()); // Remove header and empty lines
+        
+        if (lines.length === 0) {
+          alert("CSV file is empty");
+          return;
+        }
+
+        // Skip header row
+        const dataLines = lines.slice(1);
+        
+        const parsedContacts: Contact[] = dataLines
+          .filter((line) => line.trim()) // Remove empty lines
+          .map((line, index) => {
+            try {
+              // Split by comma - handle quoted fields
+              const fields = line.split(",").map((col) => col.trim().replace(/^"|"$/g, ""));
+              
+              if (fields.length < 2) {
+                console.warn(`[CSV] Line ${index + 2}: Not enough fields`, fields);
+                return null;
+              }
+
+              let name = fields[0] || "";
+              let phone = fields[1] || "";
+
+              if (!name || !phone) {
+                console.warn(`[CSV] Line ${index + 2}: Empty name or phone`, { name, phone });
+                return null;
+              }
+
+              // Normalize phone: keep only digits and +, then strip leading +
+              let normalizedPhone = phone.replace(/\s/g, "").replace(/[^\d+]/g, "");
+              // Remove leading + for proper formatting
+              if (normalizedPhone.startsWith("+")) {
+                normalizedPhone = normalizedPhone.substring(1);
+              }
+
+              if (!normalizedPhone || normalizedPhone.length < 7) {
+                console.warn(`[CSV] Line ${index + 2}: Invalid phone after normalization`, { original: phone, normalized: normalizedPhone });
+                return null;
+              }
+
+              console.log(`[CSV] Line ${index + 2}: Valid contact`, { name, phone, normalized: normalizedPhone });
+
+              return {
+                name: name.substring(0, 50), // Limit name length
+                phone: normalizedPhone,
+              };
+            } catch (lineError) {
+              console.error(`[CSV] Error parsing line ${index + 2}:`, lineError);
+              return null;
+            }
+          })
+          .filter((contact) => contact !== null) as Contact[];
+
+        if (parsedContacts.length === 0) {
+          alert("No valid contacts found in file. Please check the CSV format.\n\nExpected format:\nName,Phone Number\nJohn,+919876543210");
+          return;
+        }
+
+        console.log(`[CSV] Parsed ${parsedContacts.length} contacts successfully`);
+        setContacts(parsedContacts);
+        setStep(1); // Move to next step after upload
+      } catch (error) {
+        console.error("[CSV] Error reading file:", error);
+        alert(`Error reading file: ${error instanceof Error ? error.message : "Unknown error"}`);
+      }
     };
-    reader.readAsText(file);
+    reader.readAsText(file, "UTF-8");
   };
 
   const handleSendCampaign = async () => {
