@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 
@@ -6,6 +6,27 @@ export default function SettingsPage() {
   const [connectionStatus, setConnectionStatus] = useState<"idle" | "connected" | "error">("idle");
   const [webhookStatus, setWebhookStatus] = useState<"idle" | "connected" | "error">("idle");
   const [sessionWarning, setSessionWarning] = useState(true);
+  const [webhookToken, setWebhookToken] = useState<string>("");
+  const [tokenLoading, setTokenLoading] = useState(true);
+  const [showToken, setShowToken] = useState(false);
+
+  useEffect(() => {
+    // Fetch webhook token from backend
+    const fetchWebhookToken = async () => {
+      try {
+        const response = await fetch("https://vishva-backend.onrender.com/api/webhook-config");
+        const data = await response.json();
+        setWebhookToken(data.webhookToken || "not-set");
+      } catch (error) {
+        console.error("Failed to fetch webhook token:", error);
+        setWebhookToken("error-loading");
+      } finally {
+        setTokenLoading(false);
+      }
+    };
+
+    fetchWebhookToken();
+  }, []);
 
   return (
     <AppLayout title="Settings">
@@ -67,26 +88,41 @@ export default function SettingsPage() {
               </div>
             </div>
             <div>
-              <label className="text-xs font-medium text-foreground mb-1.5 block">Verify Token</label>
+              <label className="text-xs font-medium text-foreground mb-1.5 block">Verify Token (Auto-fetched from Backend)</label>
               <div className="bg-muted/50 border border-muted rounded-lg p-3 mb-2">
-                <p className="text-xs text-muted-foreground mb-2">
-                  📋 To get your Verify Token:
+                <p className="text-xs text-muted-foreground">
+                  🔒 This token is securely stored in your Render backend and fetched automatically.
                 </p>
-                <ol className="text-xs text-muted-foreground space-y-1 ml-4" style={{ listStyleType: 'decimal' }}>
-                  <li>Go to Render Dashboard → Backend Service → Environment</li>
-                  <li>Find <code className="bg-background px-1 py-0.5 rounded text-xs">WHATSAPP_WEBHOOK_TOKEN</code></li>
-                  <li>Copy the value and paste in Meta Business Platform</li>
-                </ol>
               </div>
               <div className="flex gap-2">
-                <input 
-                  type="password"
-                  placeholder="Enter token from Render Dashboard"
-                  className="flex-1 px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20" 
-                />
-                <button className="px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors active:scale-[0.97]">
-                  Show
-                </button>
+                {tokenLoading ? (
+                  <div className="flex-1 px-3 py-2.5 text-sm rounded-lg border border-input bg-muted text-muted-foreground">
+                    Loading token...
+                  </div>
+                ) : (
+                  <>
+                    <input 
+                      type={showToken ? "text" : "password"}
+                      value={webhookToken}
+                      readOnly
+                      className="flex-1 px-3 py-2.5 text-sm rounded-lg border border-input bg-muted focus:outline-none focus:ring-2 focus:ring-ring/20 font-mono text-xs" 
+                    />
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText(webhookToken);
+                      }}
+                      className="px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors active:scale-[0.97]"
+                    >
+                      Copy
+                    </button>
+                    <button 
+                      onClick={() => setShowToken(!showToken)}
+                      className="px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors active:scale-[0.97]"
+                    >
+                      {showToken ? "Hide" : "Show"}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
             <div className="bg-info/10 border border-info/30 rounded-lg p-3">

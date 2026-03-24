@@ -109,6 +109,13 @@ app.get('/api/status', (req, res) => {
   });
 });
 
+// Get webhook configuration
+app.get('/api/webhook-config', (req, res) => {
+  res.json({
+    webhookToken: process.env.WHATSAPP_WEBHOOK_TOKEN || 'not-set',
+  });
+});
+
 // Webhook routes (WhatsApp Cloud API)
 app.use(webhookRoutes);
 
