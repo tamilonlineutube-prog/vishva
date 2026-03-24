@@ -9,6 +9,12 @@ export default function SettingsPage() {
   const [webhookToken, setWebhookToken] = useState<string>("");
   const [tokenLoading, setTokenLoading] = useState(true);
   const [showToken, setShowToken] = useState(false);
+  
+  // WhatsApp API Config
+  const [accessToken, setAccessToken] = useState<string>("");
+  const [phoneNumberId, setPhoneNumberId] = useState<string>("");
+  const [businessAccountId, setBusinessAccountId] = useState<string>("");
+  const [saveMessage, setSaveMessage] = useState<"" | "success" | "error">("");
 
   useEffect(() => {
     // Fetch webhook token from backend
@@ -26,7 +32,33 @@ export default function SettingsPage() {
     };
 
     fetchWebhookToken();
+
+    // Load WhatsApp config from localStorage
+    const savedConfig = localStorage.getItem("whatsappConfig");
+    if (savedConfig) {
+      const config = JSON.parse(savedConfig);
+      setAccessToken(config.accessToken || "");
+      setPhoneNumberId(config.phoneNumberId || "");
+      setBusinessAccountId(config.businessAccountId || "");
+    }
   }, []);
+
+  const handleSaveConfig = () => {
+    try {
+      const config = {
+        accessToken,
+        phoneNumberId,
+        businessAccountId,
+      };
+      localStorage.setItem("whatsappConfig", JSON.stringify(config));
+      setSaveMessage("success");
+      setTimeout(() => setSaveMessage(""), 3000);
+    } catch (error) {
+      console.error("Failed to save config:", error);
+      setSaveMessage("error");
+      setTimeout(() => setSaveMessage(""), 3000);
+    }
+  };
 
   return (
     <AppLayout title="Settings">
@@ -37,20 +69,43 @@ export default function SettingsPage() {
           <div className="space-y-4">
             <div>
               <label className="text-xs font-medium text-foreground mb-1.5 block">Access Token</label>
-              <input type="password" placeholder="EAAxxxxxxx..." className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20" />
+              <input 
+                type="password" 
+                placeholder="EAAxxxxxxx..." 
+                value={accessToken}
+                onChange={(e) => setAccessToken(e.target.value)}
+                className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20" 
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-medium text-foreground mb-1.5 block">Phone Number ID</label>
-                <input type="text" placeholder="1234567890" className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20" />
+                <input 
+                  type="text" 
+                  placeholder="1234567890" 
+                  value={phoneNumberId}
+                  onChange={(e) => setPhoneNumberId(e.target.value)}
+                  className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20" 
+                />
               </div>
               <div>
                 <label className="text-xs font-medium text-foreground mb-1.5 block">Business Account ID</label>
-                <input type="text" placeholder="9876543210" className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20" />
+                <input 
+                  type="text" 
+                  placeholder="9876543210" 
+                  value={businessAccountId}
+                  onChange={(e) => setBusinessAccountId(e.target.value)}
+                  className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20" 
+                />
               </div>
             </div>
-            <div className="flex gap-2">
-              <button className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity active:scale-[0.97]">Save</button>
+            <div className="flex gap-2 items-center">
+              <button 
+                onClick={handleSaveConfig}
+                className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity active:scale-[0.97]"
+              >
+                Save
+              </button>
               <button
                 onClick={() => setConnectionStatus(connectionStatus === "connected" ? "idle" : "connected")}
                 className="px-4 py-2 text-sm font-medium rounded-lg border border-input text-foreground hover:bg-secondary transition-colors active:scale-[0.97]"
@@ -59,6 +114,12 @@ export default function SettingsPage() {
               </button>
               {connectionStatus === "connected" && (
                 <span className="inline-flex items-center gap-1 text-xs font-medium text-success"><CheckCircle2 className="w-3.5 h-3.5" /> Connected</span>
+              )}
+              {saveMessage === "success" && (
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-success"><CheckCircle2 className="w-3.5 h-3.5" /> Saved</span>
+              )}
+              {saveMessage === "error" && (
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive"><XCircle className="w-3.5 h-3.5" /> Error</span>
               )}
             </div>
           </div>
