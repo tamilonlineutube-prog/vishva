@@ -233,6 +233,3 @@ export default function Templates() {
     </AppLayout>
   );
 }
-    </AppLayout>
-  );
-}
