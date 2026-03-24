@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: whatsapp-crm-backend
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: MONGODB_URI
+        fromDatabase:
+          name: whatsapp-crm
+          property: connectionString
+      - key: WHATSAPP_WEBHOOK_TOKEN
+        scope: run_and_build
+      - key: WHATSAPP_API_KEY
+        scope: run_and_build
+      - key: WHATSAPP_BUSINESS_ACCOUNT_ID
+        scope: run_and_build
+      - key: WHATSAPP_API_URL
+        value: https://graph.instagram.com/v18.0
+      - key: FRONTEND_URL
+        value: https://your-frontend.vercel.app
+    healthCheckPath: /health
+
+databases:
+  - name: whatsapp-crm
+    plan: free
