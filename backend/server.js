@@ -33,7 +33,15 @@ app.set('io', io);
 // MongoDB Connection
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI, {
+    const mongoUri = process.env.MONGODB_URI;
+    console.log('[MongoDB] Attempting connection...');
+    console.log(`[MongoDB] URI provided: ${mongoUri ? 'Yes (' + mongoUri.substring(0, 50) + '...)' : 'NO - MISSING!'}`);
+    
+    if (!mongoUri) {
+      throw new Error('MONGODB_URI environment variable is not set');
+    }
+    
+    const conn = await mongoose.connect(mongoUri, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
