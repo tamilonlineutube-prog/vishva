@@ -45,13 +45,20 @@ Vikram Singh,+91 54321 09876`;
     const reader = new FileReader();
     reader.onload = (e) => {
       const content = e.target?.result as string;
-      const lines = content.split("\n").slice(1); // Skip header
+      // Handle different line endings (\r\n for Windows, \n for Unix)
+      const lines = content.split(/\r?\n/).slice(1); // Skip header
       const parsedContacts: Contact[] = lines
-        .filter((line) => line.trim())
+        .filter((line) => line.trim()) // Remove empty lines
         .map((line) => {
           const [name, phone] = line.split(",").map((col) => col.trim());
-          return { name, phone };
-        });
+          // Only add if both name and phone exist
+          if (name && phone) {
+            return { name, phone };
+          }
+          return null;
+        })
+        .filter((contact) => contact !== null) as Contact[]; // Remove null entries
+      
       setContacts(parsedContacts);
       setStep(1); // Move to next step after upload
     };
