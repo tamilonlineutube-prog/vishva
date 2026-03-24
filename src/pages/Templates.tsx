@@ -167,10 +167,10 @@ export default function Templates() {
                     rows={4} 
                     value={editData.body}
                     onChange={(e) => setEditData({ ...editData, body: e.target.value })}
-                    placeholder="Hi {{1}}, your loan of ₹{{2}} is approved..." 
+                    placeholder="Hi {'{'}1{'}'}, your loan of ₹{'{'}2{'}'} is approved..." 
                     className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20 resize-none" 
                   />
-                  <p className="mt-2 text-xs text-muted-foreground">Use {{1}}, {{2}}, {{3}}, etc. for variables</p>
+                  <p className="mt-2 text-xs text-muted-foreground">Use {'{'}1{'}'}, {'{'}2{'}'}, {'{'}3{'}'}, etc. for variables</p>
                 </div>
                 <button
                   onClick={handleEditSave}
@@ -216,8 +216,8 @@ export default function Templates() {
                 </div>
                 <div>
                   <label className="text-xs font-medium text-foreground mb-1.5 block">Message Body</label>
-                  <textarea rows={4} placeholder="Hi {{1}}, your loan of ₹{{2}} is approved..." className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20 resize-none" />
-                  <p className="mt-2 text-xs text-muted-foreground">Use {{1}}, {{2}}, {{3}}, etc. for variables</p>
+                  <textarea rows={4} placeholder="Hi {'{'}1{'}'}, your loan of ₹{'{'}2{'}'} is approved..." className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20 resize-none" />
+                  <p className="mt-2 text-xs text-muted-foreground">Use {'{'}1{'}'}, {'{'}2{'}'}, {'{'}3{'}'}, etc. for variables</p>
                 </div>
                 <button
                   onClick={() => setShowCreate(false)}
