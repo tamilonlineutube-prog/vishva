@@ -69,11 +69,47 @@ Vikram Singh,+91 54321 09876`;
 
   const handleSendCampaign = async () => {
     setIsSending(true);
-    // Simulate API call to send campaign
-    setTimeout(() => {
-      setIsSending(false);
+    try {
+      // Get the selected template
+      const template = templates.find(t => t.id === selectedTemplate);
+      if (!template) {
+        alert("Please select a template");
+        setIsSending(false);
+        return;
+      }
+
+      // Send campaign via backend
+      const response = await fetch("https://vishva-backend.onrender.com/api/send-campaign", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          templateId: selectedTemplate,
+          templateName: template.name,
+          templateBody: template.body,
+          contacts: contacts.map((c) => ({
+            name: c.name,
+            phone: c.phone,
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error("Campaign send failed:", error);
+        alert(`Failed to send campaign: ${error.message}`);
+        setIsSending(false);
+        return;
+      }
+
+      const result = await response.json();
+      console.log("[Campaign] Sent successfully:", result);
+
+      // Show success screen
       setSendSuccess(true);
-      // Stay on success screen for a bit, then reset
+
+      // Reset after 3 seconds
       setTimeout(() => {
         setStep(0);
         setSendSuccess(false);
@@ -81,7 +117,11 @@ Vikram Singh,+91 54321 09876`;
         setUploadedFile(null);
         setContacts([]);
       }, 3000);
-    }, 2000);
+    } catch (error) {
+      console.error("[Campaign] Error sending campaign:", error);
+      alert(`Error: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setIsSending(false);
+    }
   };
 
   return (

@@ -122,13 +122,14 @@ export default function Inbox() {
 
     // Listen for new messages
     socket.on("new_message", handleNewMessage);
+    console.log("[Inbox] Socket.io listener attached");
 
-    // Cleanup listener on unmount
+    // Cleanup listener on unmount ONLY
     return () => {
+      console.log("[Inbox] Socket.io listener removed (unmounting)");
       socket.off("new_message", handleNewMessage);
-      console.log("[Inbox] Socket.io listener removed");
     };
-  }, [contacts]);
+  }, []); // Empty dependency array - listener persists for entire component lifecycle
 
   const filtered = contacts.filter((c) => {
     if (search && !c.name.toLowerCase().includes(search.toLowerCase()) && !c.phone.includes(search)) return false;

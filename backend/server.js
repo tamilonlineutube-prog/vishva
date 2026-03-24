@@ -100,6 +100,98 @@ app.post('/api/send-message', async (req, res) => {
   }
 });
 
+// Send WhatsApp campaign to multiple contacts
+app.post('/api/send-campaign', async (req, res) => {
+  try {
+    const { contacts, templateId, templateName, templateBody } = req.body;
+
+    if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
+      return res.status(400).json({
+        error: 'Missing or invalid contacts array',
+      });
+    }
+
+    if (!templateName || !templateBody) {
+      return res.status(400).json({
+        error: 'Missing required fields: templateName, templateBody',
+      });
+    }
+
+    console.log(`\n📨 [Campaign] Starting campaign send`);
+    console.log(`   Template: ${templateName}`);
+    console.log(`   Contacts: ${contacts.length}`);
+
+    let successCount = 0;
+    let failureCount = 0;
+
+    // Send message to each contact
+    for (const contact of contacts) {
+      try {
+        const { name, phone } = contact;
+
+        if (!phone) {
+          failureCount++;
+          continue;
+        }
+
+        // Normalize phone number (remove spaces, special chars except +)
+        const normalizedPhone = phone.replace(/\s/g, '').replace(/[^\d+]/g, '');
+
+        // Create message with contact name
+        const message = templateBody.replace(/{{\s*name\s*}}/g, name || 'User');
+
+        console.log(`   ✓ Queuing message to ${name} (${normalizedPhone})`);
+
+        // TODO: Actually send via WhatsApp API (Twilio, Meta, etc.)
+        // For now, emit via Socket.io to simulate sending
+
+        // Emit real-time update to connected clients
+        io.emit('new_message', {
+          from: 'WhatsApp Campaign',
+          to: normalizedPhone,
+          message: message,
+          timestamp: new Date().toISOString(),
+          status: 'sent',
+          contactName: name,
+          templateName: templateName,
+        });
+
+        // Also emit for dashboard metrics
+        io.emit('message_sent', {
+          phone: normalizedPhone,
+          name: name,
+          timestamp: new Date().toISOString(),
+        });
+
+        successCount++;
+      } catch (contactError) {
+        console.error(`   ✗ Error processing contact:`, contactError.message);
+        failureCount++;
+      }
+    }
+
+    console.log(`📊 Campaign Complete: ${successCount} sent, ${failureCount} failed\n`);
+
+    res.json({
+      success: true,
+      message: 'Campaign sent successfully',
+      data: {
+        templateName,
+        totalContacts: contacts.length,
+        successCount,
+        failureCount,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error('Error sending campaign:', error);
+    res.status(500).json({
+      error: 'Failed to send campaign',
+      details: error.message,
+    });
+  }
+});
+
 // Get server status
 app.get('/api/status', (req, res) => {
   res.json({
