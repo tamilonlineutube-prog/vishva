@@ -70,28 +70,44 @@ Vikram Patel,915432109876`;
         
         // Log for debugging
         console.log("[CSV] File content length:", content.length);
-        console.log("[CSV] First 200 chars:", content.substring(0, 200));
+        console.log("[CSV] First 500 chars:", content.substring(0, 500));
 
-        // Handle different line endings (\r\n for Windows, \n for Unix)
-        const lines = content.split(/\r?\n/).filter((line) => line.trim()); // Remove header and empty lines
+        // Detect delimiter (comma, semicolon, or tab)
+        const lines = content.split(/\r?\n/).filter((line) => line.trim());
         
         if (lines.length === 0) {
           alert("CSV file is empty");
           return;
         }
 
-        // Skip header row
+        // Detect delimiter by checking first line
+        const firstLine = lines[0];
+        let delimiter = ",";
+        if (firstLine.includes(";") && !firstLine.includes(",")) {
+          delimiter = ";";
+        } else if (firstLine.includes("\t")) {
+          delimiter = "\t";
+        }
+        console.log("[CSV] Detected delimiter:", delimiter === "," ? "comma" : delimiter === ";" ? "semicolon" : "tab");
+
+        // Skip header row and process data
         const dataLines = lines.slice(1);
         
         const parsedContacts: Contact[] = dataLines
           .filter((line) => line.trim()) // Remove empty lines
           .map((line, index) => {
             try {
-              // Split by comma - handle quoted fields
-              const fields = line.split(",").map((col) => col.trim().replace(/^"|"$/g, ""));
+              // Split by detected delimiter and clean up
+              const fields = line.split(delimiter).map((col) => {
+                // Remove quotes and trim whitespace
+                return col
+                  .trim()
+                  .replace(/^["']|["']$/g, "")
+                  .trim();
+              });
               
               if (fields.length < 2) {
-                console.warn(`[CSV] Line ${index + 2}: Not enough fields`, fields);
+                console.warn(`[CSV] Line ${index + 2}: Not enough fields (${fields.length})`, fields);
                 return null;
               }
 
@@ -103,23 +119,45 @@ Vikram Patel,915432109876`;
                 return null;
               }
 
-              // Normalize phone: keep only digits and +, then strip leading +
-              let normalizedPhone = phone.replace(/\s/g, "").replace(/[^\d+]/g, "");
-              // Remove leading + for proper formatting
-              if (normalizedPhone.startsWith("+")) {
-                normalizedPhone = normalizedPhone.substring(1);
-              }
-
-              if (!normalizedPhone || normalizedPhone.length < 7) {
-                console.warn(`[CSV] Line ${index + 2}: Invalid phone after normalization`, { original: phone, normalized: normalizedPhone });
+              // Clean phone: remove ALL non-digit characters first
+              let cleanPhone = phone.replace(/\D/g, "");
+              
+              // Validate minimum length (at least 7 digits)
+              if (!cleanPhone || cleanPhone.length < 7) {
+                console.warn(`[CSV] Line ${index + 2}: Phone too short after cleaning`, { 
+                  original: phone, 
+                  cleaned: cleanPhone,
+                  length: cleanPhone.length 
+                });
                 return null;
               }
 
-              console.log(`[CSV] Line ${index + 2}: Valid contact`, { name, phone, normalized: normalizedPhone });
+              // Validate maximum length (at most 15 digits for E.164)
+              if (cleanPhone.length > 15) {
+                console.warn(`[CSV] Line ${index + 2}: Phone too long`, { 
+                  original: phone, 
+                  cleaned: cleanPhone,
+                  length: cleanPhone.length 
+                });
+                return null;
+              }
+
+              // Clean name: remove control characters and limit length
+              const cleanName = name
+                .replace(/[\x00-\x1F\x7F]/g, "") // Remove control characters
+                .trim()
+                .substring(0, 50); // Limit to 50 chars
+
+              console.log(`[CSV] Line ${index + 2}: Valid contact`, { 
+                name: cleanName, 
+                phone: phone,
+                cleaned: cleanPhone,
+                length: cleanPhone.length 
+              });
 
               return {
-                name: name.substring(0, 50), // Limit name length
-                phone: normalizedPhone,
+                name: cleanName,
+                phone: cleanPhone,
               };
             } catch (lineError) {
               console.error(`[CSV] Error parsing line ${index + 2}:`, lineError);
@@ -129,11 +167,17 @@ Vikram Patel,915432109876`;
           .filter((contact) => contact !== null) as Contact[];
 
         if (parsedContacts.length === 0) {
-          alert("No valid contacts found in file. Please check the CSV format.\n\nExpected format:\nName,Phone Number\nJohn,+919876543210");
+          alert(
+            "No valid contacts found in file. Please check the CSV format.\n\n" +
+            "Expected format:\n" +
+            "Name,Phone Number\n" +
+            "John Doe,919876543210\n\n" +
+            "Phone numbers should be digits only (e.g., 919876543210), between 7-15 digits."
+          );
           return;
         }
 
-        console.log(`[CSV] Parsed ${parsedContacts.length} contacts successfully`);
+        console.log(`[CSV] Successfully parsed ${parsedContacts.length} valid contacts out of ${dataLines.length} lines`);
         setContacts(parsedContacts);
         setStep(1); // Move to next step after upload
       } catch (error) {
@@ -141,7 +185,14 @@ Vikram Patel,915432109876`;
         alert(`Error reading file: ${error instanceof Error ? error.message : "Unknown error"}`);
       }
     };
-    reader.readAsText(file, "UTF-8");
+    
+    // Try UTF-8 first, fallback to ISO-8859-1
+    try {
+      reader.readAsText(file, "UTF-8");
+    } catch {
+      console.warn("[CSV] UTF-8 failed, trying ISO-8859-1");
+      reader.readAsText(file, "ISO-8859-1");
+    }
   };
 
   const handleSendCampaign = async () => {

@@ -140,24 +140,33 @@ app.post('/api/send-campaign', async (req, res) => {
           continue;
         }
 
-        // Normalize phone number (remove spaces, special chars except +)
-        const normalizedPhone = phone.replace(/\s/g, '').replace(/[^\d+]/g, '');
+    // Send message to each contact
+    for (const contact of contacts) {
+      try {
+        const { name, phone } = contact;
 
-        if (!normalizedPhone) {
-          console.log(`   ⚠️  Skipping contact with invalid phone: ${name} (${phone})`);
+        if (!phone) {
+          console.log(`   ⚠️  Skipping contact with empty phone: ${name}`);
           failureCount++;
-          failedContacts.push({ name, phone, reason: 'Invalid phone number format' });
+          failedContacts.push({ name, phone, reason: 'Empty phone number' });
           continue;
         }
 
-        // For Meta API, convert to format: country code + number (digits only, no +)
-        // E.g., +1-234-567-8900 becomes 12345678900
-        const metaFormattedPhone = normalizedPhone.replace(/[^\d]/g, '');
+        // For Meta API, phone must be digits only (E.164 format without +)
+        // E.g., 919876543210 (not +91 98765 43210)
+        const metaFormattedPhone = String(phone).replace(/\D/g, '');
         
         if (!metaFormattedPhone || metaFormattedPhone.length < 7) {
-          console.log(`   ⚠️  Skipping contact with too-short phone: ${name} (${phone} -> ${metaFormattedPhone})`);
+          console.log(`   ⚠️  Skipping contact with invalid phone: ${name} (${phone}) - too short after cleaning: ${metaFormattedPhone}`);
           failureCount++;
-          failedContacts.push({ name, phone, reason: 'Phone number too short' });
+          failedContacts.push({ name, phone, reason: `Phone number too short (${metaFormattedPhone.length} digits)` });
+          continue;
+        }
+
+        if (metaFormattedPhone.length > 15) {
+          console.log(`   ⚠️  Skipping contact with invalid phone: ${name} (${phone}) - too long after cleaning: ${metaFormattedPhone}`);
+          failureCount++;
+          failedContacts.push({ name, phone, reason: `Phone number too long (${metaFormattedPhone.length} digits)` });
           continue;
         }
 
@@ -213,9 +222,14 @@ app.post('/api/send-campaign', async (req, res) => {
             console.error(`   ✗ Meta API error for ${name} (${metaFormattedPhone}):`, {
               status: apiError.response?.status,
               message: apiError.response?.data?.error?.message || apiError.message,
+              code: apiError.response?.data?.error?.code,
             });
             failureCount++;
-            failedContacts.push({ name, phone, reason: apiError.response?.data?.error?.message || apiError.message });
+            failedContacts.push({ 
+              name, 
+              phone: metaFormattedPhone, 
+              reason: apiError.response?.data?.error?.message || apiError.message 
+            });
           }
         } else {
           // Fallback: Just emit via Socket.io for simulation
@@ -241,6 +255,12 @@ app.post('/api/send-campaign', async (req, res) => {
           successCount++;
           console.log(`   ✓ Simulated message added to queue`);
         }
+      } catch (contactError) {
+        console.error(`   ✗ Error processing contact ${contact.name}:`, contactError.message);
+        failureCount++;
+        failedContacts.push({ name: contact.name, phone: contact.phone, reason: contactError.message });
+      }
+    }
       } catch (contactError) {
         console.error(`   ✗ Error processing contact ${contact.name}:`, contactError.message);
         failureCount++;
