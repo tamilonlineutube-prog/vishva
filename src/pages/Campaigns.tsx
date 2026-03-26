@@ -1,9 +1,25 @@
 import { useState, useRef, useEffect } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { campaigns, templates } from "@/lib/mockData";
-import { Upload, Send, CheckCircle2, Loader2, XCircle, ChevronRight, Download, File, AlertTriangle } from "lucide-react";
+import { Upload, Send, CheckCircle2, Loader2, XCircle, ChevronRight, Download, File, AlertTriangle, AlertCircle } from "lucide-react";
 
-const steps = ["Upload Contacts", "Select Template", "Map Variables", "Review & Send"];
+const steps = ["Select Account", "Upload Contacts", "Select Template", "Review & Send"];
+
+interface Account {
+  _id: string;
+  accountName: string;
+  displayPhoneNumber: string;
+  verificationStatus: string;
+}
+
+interface Template {
+  _id: string;
+  name: string;
+  category: string;
+  body: string;
+  status: string;
+  accountId: string;
+}
 
 interface Contact {
   name: string;
@@ -18,10 +34,15 @@ interface CampaignHistory {
   failureCount: number;
   timestamp: string;
   status: 'success' | 'partial' | 'failed';
+  accountName: string;
 }
 
 export default function Campaigns() {
   const [step, setStep] = useState(0);
+  const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(true);
+  const [availableTemplates, setAvailableTemplates] = useState<Template[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState("");
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -29,14 +50,57 @@ export default function Campaigns() {
   const [sendSuccess, setSendSuccess] = useState(false);
   const [campaignHistory, setCampaignHistory] = useState<CampaignHistory[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const userId = localStorage.getItem("userId");
+  const API_URL = import.meta.env.VITE_API_URL || "https://vishva-backend.onrender.com";
 
-  // Load campaign history from localStorage on mount
+  // Load campaign history and accounts on mount
   useEffect(() => {
     const saved = localStorage.getItem("campaignHistory");
     if (saved) {
       setCampaignHistory(JSON.parse(saved));
     }
-  }, []);
+    
+    if (userId) {
+      fetchAccounts();
+    }
+  }, [userId]);
+
+  // Fetch accounts from API
+  const fetchAccounts = async () => {
+    try {
+      setLoadingAccounts(true);
+      const response = await fetch(`${API_URL}/api/accounts?userId=${userId}`);
+      const data = await response.json();
+      setAccounts(data);
+      if (data.length > 0) {
+        setSelectedAccount(data[0]._id);
+      }
+    } catch (err) {
+      console.error("Error fetching accounts:", err);
+    } finally {
+      setLoadingAccounts(false);
+    }
+  };
+
+  // Fetch templates for selected account
+  useEffect(() => {
+    if (selectedAccount) {
+      fetchTemplatesForAccount(selectedAccount);
+    }
+  }, [selectedAccount]);
+
+  const fetchTemplatesForAccount = async (accountId: string) => {
+    try {
+      const response = await fetch(`${API_URL}/api/templates?accountId=${accountId}&userId=${userId}`);
+      const data = await response.json();
+      if (data.success) {
+        setAvailableTemplates(data.templates);
+        setSelectedTemplate(""); // Reset template selection
+      }
+    } catch (err) {
+      console.error("Error fetching templates:", err);
+    }
+  };
 
   const downloadSampleExcel = () => {
     // CSV format with proper phone numbers (country code + number)
@@ -196,53 +260,43 @@ Vikram Patel,915432109876`;
   };
 
   const handleSendCampaign = async () => {
+    if (!selectedAccount) {
+      alert("Please select an account");
+      return;
+    }
+
+    const selectedAcct = accounts.find(a => a._id === selectedAccount);
+    if (!selectedAcct) {
+      alert("Account not found");
+      return;
+    }
+
     setIsSending(true);
     try {
       // Get the selected template
-      const template = templates.find(t => t.id === selectedTemplate);
+      const template = availableTemplates.find(t => t._id === selectedTemplate);
       if (!template) {
         alert("Please select a template");
         setIsSending(false);
         return;
       }
 
-      // Get WhatsApp credentials from localStorage
-      const savedConfig = localStorage.getItem("whatsappConfig");
-      let accessToken = "";
-      let phoneNumberId = "";
-      if (savedConfig) {
-        const config = JSON.parse(savedConfig);
-        accessToken = config.accessToken || "";
-        phoneNumberId = config.phoneNumberId || "";
-      }
-
-      // Warn if no credentials configured
-      if (!accessToken || !phoneNumberId) {
-        const proceed = confirm(
-          "WhatsApp credentials not configured. Messages will be simulated only. Configure in Settings to send real messages. Continue?"
-        );
-        if (!proceed) {
-          setIsSending(false);
-          return;
-        }
-      }
-
-      // Send campaign via backend
-      const response = await fetch("https://vishva-backend.onrender.com/api/send-campaign", {
+      // Send campaign via backend with account credentials
+      const response = await fetch(`${API_URL}/api/send-campaign`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          templateId: selectedTemplate,
+          templateId: template._id,
           templateName: template.name,
           templateBody: template.body,
           contacts: contacts.map((c) => ({
             name: c.name,
             phone: c.phone,
           })),
-          accessToken,
-          phoneNumberId,
+          accountId: selectedAccount,
+          // Note: Backend should use account credentials from database
         }),
       });
 
@@ -266,6 +320,7 @@ Vikram Patel,915432109876`;
         failureCount: result.data.failureCount,
         timestamp: new Date().toLocaleString(),
         status: result.data.failureCount === 0 ? 'success' : result.data.successCount > 0 ? 'partial' : 'failed',
+        accountName: selectedAcct.accountName,
       };
 
       const updated = [newCampaign, ...campaignHistory];
@@ -313,132 +368,177 @@ Vikram Patel,915432109876`;
           </div>
 
           {/* Step Content */}
-          {step === 0 && (
-            <div className="border-2 border-dashed border-border rounded-xl p-10 text-center">
-              <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
-              <p className="text-sm font-medium text-foreground mb-1">Upload CSV or Excel file</p>
-              <p className="text-xs text-muted-foreground mb-4">Columns: Name, Phone Number</p>
-              
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity active:scale-[0.97] inline-flex items-center justify-center gap-2"
-                >
-                  <Upload className="w-4 h-4" /> Choose File
-                </button>
-
-                {uploadedFile && (
-                  <div className="flex items-center gap-2 px-3 py-2 bg-success/10 border border-success/30 rounded-lg">
-                    <CheckCircle2 className="w-4 h-4 text-success" />
-                    <span className="text-xs text-success">{uploadedFile.name} ({contacts.length} contacts)</span>
-                  </div>
-                )}
-
-                <button
-                  onClick={downloadSampleExcel}
-                  className="px-4 py-2 text-sm font-medium rounded-lg border border-input text-foreground hover:bg-secondary transition-colors inline-flex items-center justify-center gap-2"
-                >
-                  <Download className="w-4 h-4" /> Download Sample
-                </button>
-              </div>
+          {loadingAccounts ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
             </div>
-          )}
-
-          {step === 1 && (
-            <div className="space-y-3 max-w-md">
-              <label className="text-sm font-medium text-foreground">Select Template</label>
-              <select
-                value={selectedTemplate}
-                onChange={(e) => setSelectedTemplate(e.target.value)}
-                className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20"
-              >
-                <option value="">Choose a template...</option>
-                {templates.filter(t => t.status === "Approved").map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-              <div className="flex gap-2 pt-2">
-                <button onClick={() => setStep(0)} className="px-4 py-2 text-sm font-medium rounded-lg border border-input text-foreground hover:bg-secondary transition-colors">Back</button>
-                <button onClick={() => setStep(2)} className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity active:scale-[0.97]">Next</button>
-              </div>
-            </div>
-          )}
-
-          {step === 2 && (
-            <div className="space-y-4 max-w-md">
-              <p className="text-sm font-medium text-foreground">Map Variables</p>
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-mono bg-secondary px-2 py-1 rounded text-secondary-foreground">{"{{1}}"}</span>
-                  <span className="text-sm text-muted-foreground">→</span>
-                  <span className="text-sm text-foreground">Name (from CSV)</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-mono bg-secondary px-2 py-1 rounded text-secondary-foreground">{"{{2}}"}</span>
-                  <span className="text-sm text-muted-foreground">→</span>
-                  <span className="text-sm text-foreground">Custom Link</span>
-                </div>
-              </div>
-              <div className="flex gap-2 pt-2">
-                <button onClick={() => setStep(1)} className="px-4 py-2 text-sm font-medium rounded-lg border border-input text-foreground hover:bg-secondary transition-colors">Back</button>
-                <button onClick={() => setStep(3)} className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity active:scale-[0.97]">Next</button>
-              </div>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="space-y-4 max-w-md">
-              <div className="bg-accent/50 rounded-lg p-4 text-sm">
-                <p className="font-medium text-foreground mb-2">Campaign Summary</p>
-                <p className="text-muted-foreground">Contacts: <span className="text-foreground font-medium">{contacts.length}</span></p>
-                <p className="text-muted-foreground">Template: <span className="text-foreground font-medium">{templates.find(t => t.id === selectedTemplate)?.name || selectedTemplate}</span></p>
-              </div>
-              <div className="flex gap-2">
-                <button onClick={() => setStep(2)} className="px-4 py-2 text-sm font-medium rounded-lg border border-input text-foreground hover:bg-secondary transition-colors">Back</button>
-                <button 
-                  onClick={handleSendCampaign}
-                  disabled={isSending}
-                  className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity active:scale-[0.97] inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isSending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" /> Sending...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-4 h-4" /> Send Campaign
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Success State */}
-          {sendSuccess && (
-            <div className="space-y-4 max-w-md">
-              <div className="bg-success/10 border-2 border-success rounded-xl p-6 text-center animate-fade-in">
-                <CheckCircle2 className="w-12 h-12 text-success mx-auto mb-3" />
-                <h4 className="text-sm font-semibold text-foreground mb-2">Campaign Sent Successfully! 🎉</h4>
-                <p className="text-xs text-muted-foreground mb-4">
-                  Your campaign with {contacts.length} contacts has been queued for sending.
+          ) : accounts.length === 0 ? (
+            <div className="p-6 rounded-lg bg-yellow-500/10 border border-yellow-500/30 flex items-gap-2">
+              <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+              <div className="ml-3">
+                <p className="text-sm text-yellow-700">
+                  No accounts configured. Please go to <strong>Accounts</strong> page to add your Meta business account first.
                 </p>
-                <div className="bg-accent/30 rounded-lg p-3 text-xs text-muted-foreground mb-4">
-                  <p>Template: {templates.find(t => t.id === selectedTemplate)?.name}</p>
-                  <p>Status: Scheduled</p>
-                  <p>Sent Time: {new Date().toLocaleTimeString()}</p>
-                </div>
-                <p className="text-xs text-muted-foreground">Redirecting to new campaign in 3 seconds...</p>
               </div>
             </div>
+          ) : (
+            <>
+              {step === 0 && (
+                <div className="space-y-4 max-w-md">
+                  <label className="text-sm font-medium text-foreground">Select Account</label>
+                  <select
+                    value={selectedAccount || ""}
+                    onChange={(e) => {
+                      setSelectedAccount(e.target.value);
+                      setStep(1);
+                    }}
+                    className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20"
+                  >
+                    <option value="">Choose an account...</option>
+                    {accounts.map((acc) => (
+                      <option key={acc._id} value={acc._id}>
+                        {acc.accountName} ({acc.displayPhoneNumber})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {step === 1 && (
+                <div className="border-2 border-dashed border-border rounded-xl p-10 text-center">
+                  <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-sm font-medium text-foreground mb-1">Upload CSV or Excel file</p>
+                  <p className="text-xs text-muted-foreground mb-4">Columns: Name, Phone Number</p>
+                  
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,.xlsx,.xls"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+
+                  <div className="flex flex-col gap-3">
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity active:scale-[0.97] inline-flex items-center justify-center gap-2"
+                    >
+                      <Upload className="w-4 h-4" /> Choose File
+                    </button>
+
+                    {uploadedFile && (
+                      <div className="flex items-center gap-2 px-3 py-2 bg-success/10 border border-success/30 rounded-lg">
+                        <CheckCircle2 className="w-4 h-4 text-success" />
+                        <span className="text-xs text-success">{uploadedFile.name} ({contacts.length} contacts)</span>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={downloadSampleExcel}
+                      className="px-4 py-2 text-sm font-medium rounded-lg border border-input text-foreground hover:bg-secondary transition-colors inline-flex items-center justify-center gap-2"
+                    >
+                      <Download className="w-4 h-4" /> Download Sample
+                    </button>
+                  </div>
+
+                  <div className="flex gap-2 pt-4 justify-center">
+                    <button
+                      onClick={() => setStep(0)}
+                      className="px-4 py-2 text-sm font-medium rounded-lg border border-input text-foreground hover:bg-secondary transition-colors"
+                    >
+                      Back
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {step === 2 && (
+                <div className="space-y-3 max-w-md">
+                  <label className="text-sm font-medium text-foreground">Select Template</label>
+                  <select
+                    value={selectedTemplate}
+                    onChange={(e) => setSelectedTemplate(e.target.value)}
+                    className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20"
+                  >
+                    <option value="">Choose a template...</option>
+                    {availableTemplates.filter(t => t.status === "APPROVED").map((t) => (
+                      <option key={t._id} value={t._id}>{t.name}</option>
+                    ))}
+                  </select>
+                  {availableTemplates.length === 0 && (
+                    <p className="text-xs text-muted-foreground">No approved templates. Create and approve a template first.</p>
+                  )}
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={() => setStep(1)}
+                      className="px-4 py-2 text-sm font-medium rounded-lg border border-input text-foreground hover:bg-secondary transition-colors"
+                    >
+                      Back
+                    </button>
+                    <button
+                      onClick={() => setStep(3)}
+                      disabled={!selectedTemplate}
+                      className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity active:scale-[0.97] disabled:opacity-50"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {step === 3 && (
+                <div className="space-y-4 max-w-md">
+                  <div className="bg-accent/50 rounded-lg p-4 text-sm">
+                    <p className="font-medium text-foreground mb-2">Campaign Summary</p>
+                    <p className="text-muted-foreground">Account: <span className="text-foreground font-medium">{accounts.find(a => a._id === selectedAccount)?.accountName}</span></p>
+                    <p className="text-muted-foreground">Contacts: <span className="text-foreground font-medium">{contacts.length}</span></p>
+                    <p className="text-muted-foreground">Template: <span className="text-foreground font-medium">{availableTemplates.find(t => t._id === selectedTemplate)?.name || selectedTemplate}</span></p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setStep(2)}
+                      className="px-4 py-2 text-sm font-medium rounded-lg border border-input text-foreground hover:bg-secondary transition-colors"
+                    >
+                      Back
+                    </button>
+                    <button 
+                      onClick={handleSendCampaign}
+                      disabled={isSending || !selectedTemplate}
+                      className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity active:scale-[0.97] inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isSending ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" /> Sending...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-4 h-4" /> Send Campaign
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Success State */}
+              {sendSuccess && (
+                <div className="space-y-4 max-w-md">
+                  <div className="bg-success/10 border-2 border-success rounded-xl p-6 text-center animate-fade-in">
+                    <CheckCircle2 className="w-12 h-12 text-success mx-auto mb-3" />
+                    <h4 className="text-sm font-semibold text-foreground mb-2">Campaign Sent Successfully! 🎉</h4>
+                    <p className="text-xs text-muted-foreground mb-4">
+                      Your campaign with {contacts.length} contacts has been queued for sending.
+                    </p>
+                    <div className="bg-accent/30 rounded-lg p-3 text-xs text-muted-foreground mb-4">
+                      <p>Account: {accounts.find(a => a._id === selectedAccount)?.accountName}</p>
+                      <p>Template: {availableTemplates.find(t => t._id === selectedTemplate)?.name}</p>
+                      <p>Sent Time: {new Date().toLocaleTimeString()}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Redirecting to new campaign in 3 seconds...</p>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -458,9 +558,9 @@ Vikram Patel,915432109876`;
                 <thead>
                   <tr className="border-b border-border">
                     <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Campaign</th>
+                    <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Account</th>
                     <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
                     <th className="text-right px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Sent</th>
-                    <th className="text-right px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Delivered</th>
                     <th className="text-right px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Failed</th>
                     <th className="text-left px-6 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Date</th>
                   </tr>
@@ -469,6 +569,7 @@ Vikram Patel,915432109876`;
                   {campaignHistory.map((campaign) => (
                     <tr key={campaign.id} className="border-b border-border last:border-0 hover:bg-secondary/30 transition-colors">
                       <td className="px-6 py-3.5 font-medium text-foreground">{campaign.templateName}</td>
+                      <td className="px-6 py-3.5 text-sm text-muted-foreground">{campaign.accountName || "—"}</td>
                       <td className="px-6 py-3.5">
                         <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${
                           campaign.status === 'success' ? 'bg-success/10 text-success' : campaign.status === 'partial' ? 'bg-warning/10 text-warning' : 'bg-destructive/10 text-destructive'
@@ -478,7 +579,6 @@ Vikram Patel,915432109876`;
                         </span>
                       </td>
                       <td className="px-6 py-3.5 text-right tabular-nums text-foreground">{campaign.successCount}</td>
-                      <td className="px-6 py-3.5 text-right tabular-nums text-foreground">-</td>
                       <td className="px-6 py-3.5 text-right tabular-nums text-destructive">{campaign.failureCount}</td>
                       <td className="px-6 py-3.5 text-muted-foreground text-xs">{campaign.timestamp}</td>
                     </tr>
