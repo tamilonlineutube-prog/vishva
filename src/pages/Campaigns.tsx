@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { AppLayout } from "@/components/AppLayout";
+import { useAuth } from "@/contexts/AuthContext";
 import { campaigns, templates } from "@/lib/mockData";
 import { Upload, Send, CheckCircle2, Loader2, XCircle, ChevronRight, Download, File, AlertTriangle, AlertCircle } from "lucide-react";
 
@@ -38,6 +39,9 @@ interface CampaignHistory {
 }
 
 export default function Campaigns() {
+  const { user } = useAuth();
+  const userId = user?.id;
+
   const [step, setStep] = useState(0);
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -50,7 +54,6 @@ export default function Campaigns() {
   const [sendSuccess, setSendSuccess] = useState(false);
   const [campaignHistory, setCampaignHistory] = useState<CampaignHistory[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const userId = localStorage.getItem("userId");
   const API_URL = import.meta.env.VITE_API_URL || "https://vishva-backend.onrender.com";
 
   // Load campaign history and accounts on mount

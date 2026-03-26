@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/AppLayout";
+import { useAuth } from "@/contexts/AuthContext";
 import { Plus, Eye, Pencil, Trash2, CheckCircle2, Clock, XCircle, X, Send, RefreshCw, AlertCircle } from "lucide-react";
 
 interface Account {
@@ -34,6 +35,9 @@ interface TemplateForm {
 const API_URL = import.meta.env.VITE_API_URL || "https://vishva-backend.onrender.com";
 
 export default function Templates() {
+  const { user } = useAuth();
+  const userId = user?.id;
+
   const [templateList, setTemplateList] = useState<Template[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
@@ -49,7 +53,6 @@ export default function Templates() {
   const [createData, setCreateData] = useState<TemplateForm>({ name: "", category: "MARKETING", body: "", accountId: "" });
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const userId = localStorage.getItem("userId");
 
   // Fetch accounts and templates on mount
   useEffect(() => {

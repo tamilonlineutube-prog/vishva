@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/AppLayout";
+import { useAuth } from "@/contexts/AuthContext";
 import { Plus, Edit2, Trash2, Check, AlertCircle, RefreshCw, Eye, EyeOff, Copy } from "lucide-react";
 
 interface Account {
@@ -26,6 +27,9 @@ interface NewAccountForm {
 const API_URL = import.meta.env.VITE_API_URL || "https://vishva-backend.onrender.com";
 
 export default function Accounts() {
+  const { user } = useAuth();
+  const userId = user?.id;
+
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -44,9 +48,6 @@ export default function Accounts() {
     phoneNumberId: "",
     displayPhoneNumber: "",
   });
-
-  // Get user ID from localStorage
-  const userId = localStorage.getItem("userId");
 
   // Fetch accounts
   const fetchAccounts = async () => {
