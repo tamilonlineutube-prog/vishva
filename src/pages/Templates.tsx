@@ -1,6 +1,13 @@
 import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/AppLayout";
-import { Plus, Eye, Pencil, Trash2, CheckCircle2, Clock, XCircle, X, Send, RefreshCw } from "lucide-react";
+import { Plus, Eye, Pencil, Trash2, CheckCircle2, Clock, XCircle, X, Send, RefreshCw, AlertCircle } from "lucide-react";
+
+interface Account {
+  _id: string;
+  accountName: string;
+  displayPhoneNumber: string;
+  verificationStatus: string;
+}
 
 interface Template {
   _id: string;
@@ -14,19 +21,24 @@ interface Template {
   rejectionReason?: string;
   submittedAt?: string;
   updatedAt: string;
+  accountId?: string;
 }
 
 interface TemplateForm {
   name: string;
   category: "MARKETING" | "UTILITY" | "AUTHENTICATION";
   body: string;
+  accountId?: string;
 }
 
 const API_URL = import.meta.env.VITE_API_URL || "https://vishva-backend.onrender.com";
 
 export default function Templates() {
   const [templateList, setTemplateList] = useState<Template[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
@@ -34,17 +46,37 @@ export default function Templates() {
   const [checkingStatus, setCheckingStatus] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [editData, setEditData] = useState<TemplateForm>({ name: "", category: "MARKETING", body: "" });
-  const [createData, setCreateData] = useState<TemplateForm>({ name: "", category: "MARKETING", body: "" });
+  const [createData, setCreateData] = useState<TemplateForm>({ name: "", category: "MARKETING", body: "", accountId: "" });
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const userId = localStorage.getItem("userId");
 
-  // Fetch templates from backend
+  // Fetch accounts and templates on mount
   useEffect(() => {
-    fetchTemplates();
+    if (userId) {
+      fetchAccounts();
+      fetchTemplates();
+    }
     // Auto refresh status every 30 seconds for templates submitted to Meta
     const interval = setInterval(fetchTemplates, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [userId]);
+
+  const fetchAccounts = async () => {
+    try {
+      setLoadingAccounts(true);
+      const response = await fetch(`${API_URL}/api/accounts?userId=${userId}`);
+      const data = await response.json();
+      setAccounts(data);
+      if (data.length > 0 && !selectedAccountId) {
+        setSelectedAccountId(data[0]._id);
+      }
+    } catch (err) {
+      console.error("Error fetching accounts:", err);
+    } finally {
+      setLoadingAccounts(false);
+    }
+  };
 
   const fetchTemplates = async () => {
     try {
@@ -105,19 +137,28 @@ export default function Templates() {
       return;
     }
 
+    if (!selectedAccountId) {
+      setError("Please select an account");
+      return;
+    }
+
     try {
       setLoading(true);
       const response = await fetch(`${API_URL}/api/templates`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(createData),
+        body: JSON.stringify({
+          ...createData,
+          accountId: selectedAccountId,
+          userId,
+        }),
       });
 
       const data = await response.json();
       if (data.success) {
         setTemplateList([...templateList, data.template]);
         setShowCreate(false);
-        setCreateData({ name: "", category: "MARKETING", body: "" });
+        setCreateData({ name: "", category: "MARKETING", body: "", accountId: "" });
         setSuccess("Template created successfully. Submit to Meta for approval.");
         setTimeout(() => setSuccess(null), 3000);
       } else {
@@ -484,7 +525,29 @@ export default function Templates() {
                   <X className="w-4 h-4" />
                 </button>
               </div>
+              {accounts.length === 0 && (
+                <div className="mb-4 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 flex items-gap-2">
+                  <AlertCircle className="w-4 h-4 text-yellow-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-yellow-700 ml-2">Please add an account in the Accounts page first</p>
+                </div>
+              )}
               <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-medium text-foreground mb-1.5 block">Account</label>
+                  <select
+                    value={selectedAccountId || ""}
+                    onChange={(e) => setSelectedAccountId(e.target.value)}
+                    disabled={accounts.length === 0}
+                    className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20 disabled:opacity-50"
+                  >
+                    <option value="">Select an account...</option>
+                    {accounts.map((acc) => (
+                      <option key={acc._id} value={acc._id}>
+                        {acc.accountName} ({acc.displayPhoneNumber})
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div>
                   <label className="text-xs font-medium text-foreground mb-1.5 block">Template Name</label>
                   <input
@@ -492,7 +555,8 @@ export default function Templates() {
                     value={createData.name}
                     onChange={(e) => setCreateData({ ...createData, name: e.target.value })}
                     placeholder="e.g., hello_world"
-                    className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20"
+                    disabled={accounts.length === 0}
+                    className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20 disabled:opacity-50"
                   />
                 </div>
                 <div>
@@ -500,7 +564,8 @@ export default function Templates() {
                   <select
                     value={createData.category}
                     onChange={(e) => setCreateData({ ...createData, category: e.target.value as "MARKETING" | "UTILITY" | "AUTHENTICATION" })}
-                    className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20"
+                    disabled={accounts.length === 0}
+                    className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20 disabled:opacity-50"
                   >
                     <option>MARKETING</option>
                     <option>UTILITY</option>

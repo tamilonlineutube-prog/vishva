@@ -15,11 +15,21 @@ const getMetaCredentials = () => ({
 
 /**
  * GET /api/templates
- * Get all templates
+ * Get all templates for user and optionally filtered by account
  */
 router.get('/', async (req, res) => {
   try {
-    const templates = await Template.find().sort({ createdAt: -1 });
+    const userId = req.user?.id || req.query.userId;
+    const accountId = req.query.accountId;
+
+    let query = {};
+    if (userId) query.userId = userId;
+    if (accountId) query.accountId = accountId;
+
+    const templates = await Template.find(query)
+      .populate('accountId', 'accountName displayPhoneNumber')
+      .sort({ createdAt: -1 });
+
     res.json({
       success: true,
       count: templates.length,
@@ -37,25 +47,35 @@ router.get('/', async (req, res) => {
  */
 router.post('/', async (req, res) => {
   try {
-    const { name, category, body } = req.body;
+    const { name, category, body, accountId } = req.body;
+    const userId = req.user?.id || req.body.userId;
 
-    if (!name || !category || !body) {
+    if (!name || !category || !body || !accountId) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: name, category, body',
+        message: 'Missing required fields: name, category, body, accountId',
       });
     }
 
-    // Check if template name already exists
-    const existing = await Template.findOne({ name });
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID required',
+      });
+    }
+
+    // Check if template name already exists for this user
+    const existing = await Template.findOne({ name, userId });
     if (existing) {
       return res.status(409).json({
         success: false,
-        message: 'Template with this name already exists',
+        message: 'Template with this name already exists for your account',
       });
     }
 
     const template = new Template({
+      userId,
+      accountId,
       name,
       category: category.toUpperCase(),
       body,
@@ -65,11 +85,13 @@ router.post('/', async (req, res) => {
 
     await template.save();
 
-    console.log(`[Template] Created locally: ${name}`);
+    const populatedTemplate = await template.populate('accountId', 'accountName displayPhoneNumber');
+
+    console.log(`[Template] Created locally: ${name} for account ${accountId}`);
     res.status(201).json({
       success: true,
       message: 'Template created. Use "Submit to Meta" to send for approval.',
-      template,
+      template: populatedTemplate,
     });
   } catch (error) {
     console.error('[Template] Error creating template:', error.message);
@@ -261,7 +283,9 @@ router.post('/:id/check-status', async (req, res) => {
  */
 router.put('/:id', async (req, res) => {
   try {
-    const template = await Template.findById(req.params.id);
+    const userId = req.user?.id || req.body.userId;
+    const template = await Template.findOne({ _id: req.params.id, userId });
+    
     if (!template) {
       return res.status(404).json({ success: false, message: 'Template not found' });
     }
@@ -276,7 +300,7 @@ router.put('/:id', async (req, res) => {
     const { name, category, body } = req.body;
 
     if (name && name !== template.name) {
-      const existing = await Template.findOne({ name });
+      const existing = await Template.findOne({ name, userId });
       if (existing) {
         return res.status(409).json({
           success: false,
@@ -291,10 +315,12 @@ router.put('/:id', async (req, res) => {
 
     await template.save();
 
+    const populatedTemplate = await template.populate('accountId', 'accountName displayPhoneNumber');
+
     res.json({
       success: true,
       message: 'Template updated',
-      template,
+      template: populatedTemplate,
     });
   } catch (error) {
     console.error('[Template] Error updating template:', error.message);
@@ -308,7 +334,9 @@ router.put('/:id', async (req, res) => {
  */
 router.delete('/:id', async (req, res) => {
   try {
-    const template = await Template.findByIdAndDelete(req.params.id);
+    const userId = req.user?.id || req.query.userId;
+    const template = await Template.findOneAndDelete({ _id: req.params.id, userId });
+    
     if (!template) {
       return res.status(404).json({ success: false, message: 'Template not found' });
     }

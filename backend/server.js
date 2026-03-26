@@ -9,6 +9,7 @@ const axios = require('axios');
 // Import routes
 const webhookRoutes = require('./routes/webhookRoutes');
 const templateRoutes = require('./routes/templateRoutes');
+const accountRoutes = require('./routes/accountRoutes');
 
 // Load environment variables
 dotenv.config();
@@ -313,6 +314,9 @@ app.use(webhookRoutes);
 
 // Template routes (WhatsApp Template Management)
 app.use('/api/templates', templateRoutes);
+
+// Account routes (Meta Business Account Management)
+app.use('/api/accounts', accountRoutes);
 
 // Socket.io Connection Handling
 io.on('connection', (socket) => {
