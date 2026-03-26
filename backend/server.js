@@ -8,6 +8,7 @@ const axios = require('axios');
 
 // Import routes
 const webhookRoutes = require('./routes/webhookRoutes');
+const templateRoutes = require('./routes/templateRoutes');
 
 // Load environment variables
 dotenv.config();
@@ -309,6 +310,9 @@ app.get('/api/webhook-config', (req, res) => {
 
 // Webhook routes (WhatsApp Cloud API)
 app.use(webhookRoutes);
+
+// Template routes (WhatsApp Template Management)
+app.use('/api/templates', templateRoutes);
 
 // Socket.io Connection Handling
 io.on('connection', (socket) => {
