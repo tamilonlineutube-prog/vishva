@@ -69,6 +69,14 @@ export const templates = [
     body: "💰 Loan Disbursed!\n\nHi {{1}}, your loan of ₹{{2}} has been disbursed to your account {{3}}.\n\nDate: {{4}}\nEMI Amount: ₹{{5}}\nFirst Payment Date: {{6}}", 
     updatedAt: "2026-03-24" 
   },
+  { 
+    id: "9", 
+    name: "hello_world_meta_test", 
+    category: "Marketing" as const, 
+    status: "Approved" as const, 
+    body: "Hello World\n\nWelcome and congratulations!! This message demonstrates your ability to send a WhatsApp message notification from the Cloud API, hosted by Meta. Thank you for taking the time to test with us.", 
+    updatedAt: "2026-03-26" 
+  },
 ];
 
 export const dashboardMetrics = {

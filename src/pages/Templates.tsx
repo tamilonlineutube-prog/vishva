@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/AppLayout";
-import { templates } from "@/lib/mockData";
+import { templates as defaultTemplates } from "@/lib/mockData";
 import { Plus, Eye, Pencil, Trash2, CheckCircle2, Clock, XCircle, X } from "lucide-react";
 
 interface TemplateForm {
@@ -9,12 +9,23 @@ interface TemplateForm {
   body: string;
 }
 
+const TEMPLATES_STORAGE_KEY = "whatsapp_templates";
+
 export default function Templates() {
   const [showCreate, setShowCreate] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [editData, setEditData] = useState<TemplateForm>({ name: "", category: "Marketing", body: "" });
-  const [templateList, setTemplateList] = useState(templates);
+  const [createData, setCreateData] = useState<TemplateForm>({ name: "", category: "Marketing", body: "" });
+  const [templateList, setTemplateList] = useState(() => {
+    const saved = localStorage.getItem(TEMPLATES_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : defaultTemplates;
+  });
+
+  // Save to localStorage whenever templateList changes
+  useEffect(() => {
+    localStorage.setItem(TEMPLATES_STORAGE_KEY, JSON.stringify(templateList));
+  }, [templateList]);
 
   const previewTemplate = templateList.find((t) => t.id === preview);
 
@@ -24,6 +35,10 @@ export default function Templates() {
   };
 
   const handleEditSave = () => {
+    if (!editData.name.trim() || !editData.body.trim()) {
+      alert("Please fill in all fields");
+      return;
+    }
     setTemplateList(
       templateList.map((t) =>
         t.id === editId ? { ...t, ...editData, updatedAt: new Date().toISOString().split("T")[0] } : t
@@ -31,6 +46,22 @@ export default function Templates() {
     );
     setEditId(null);
     setEditData({ name: "", category: "Marketing", body: "" });
+  };
+
+  const handleCreateSave = () => {
+    if (!createData.name.trim() || !createData.body.trim()) {
+      alert("Please fill in all fields");
+      return;
+    }
+    const newTemplate = {
+      id: Date.now().toString(),
+      ...createData,
+      status: "Pending" as const,
+      updatedAt: new Date().toISOString().split("T")[0],
+    };
+    setTemplateList([...templateList, newTemplate]);
+    setShowCreate(false);
+    setCreateData({ name: "", category: "Marketing", body: "" });
   };
 
   const handleDelete = (id: string) => {
@@ -194,33 +225,38 @@ export default function Templates() {
               <div className="space-y-4">
                 <div>
                   <label className="text-xs font-medium text-foreground mb-1.5 block">Template Name</label>
-                  <input type="text" placeholder="e.g., payment_reminder" className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20" />
+                  <input 
+                    type="text" 
+                    value={createData.name}
+                    onChange={(e) => setCreateData({ ...createData, name: e.target.value })}
+                    placeholder="e.g., payment_reminder" 
+                    className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20" 
+                  />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-medium text-foreground mb-1.5 block">Category</label>
-                    <select className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20">
-                      <option>Marketing</option>
-                      <option>Utility</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-foreground mb-1.5 block">Language</label>
-                    <select className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20">
-                      <option>English</option>
-                      <option>Hindi</option>
-                      <option>Tamil</option>
-                      <option>Kannada</option>
-                    </select>
-                  </div>
+                <div>
+                  <label className="text-xs font-medium text-foreground mb-1.5 block">Category</label>
+                  <select 
+                    value={createData.category}
+                    onChange={(e) => setCreateData({ ...createData, category: e.target.value as "Marketing" | "Utility" })}
+                    className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20"
+                  >
+                    <option>Marketing</option>
+                    <option>Utility</option>
+                  </select>
                 </div>
                 <div>
                   <label className="text-xs font-medium text-foreground mb-1.5 block">Message Body</label>
-                  <textarea rows={4} placeholder="Hi {'{'}1{'}'}, your loan of ₹{'{'}2{'}'} is approved..." className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20 resize-none" />
+                  <textarea 
+                    rows={4} 
+                    value={createData.body}
+                    onChange={(e) => setCreateData({ ...createData, body: e.target.value })}
+                    placeholder="Hi {'{'}1{'}'}, your loan of ₹{'{'}2{'}'} is approved..." 
+                    className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20 resize-none" 
+                  />
                   <p className="mt-2 text-xs text-muted-foreground">Use {'{'}1{'}'}, {'{'}2{'}'}, {'{'}3{'}'}, etc. for variables</p>
                 </div>
                 <button
-                  onClick={() => setShowCreate(false)}
+                  onClick={handleCreateSave}
                   className="w-full py-2.5 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity active:scale-[0.97]"
                 >
                   Create Template
