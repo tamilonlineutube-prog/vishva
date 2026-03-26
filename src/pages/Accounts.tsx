@@ -27,7 +27,7 @@ interface NewAccountForm {
 const API_URL = import.meta.env.VITE_API_URL || "https://vishva-backend.onrender.com";
 
 export default function Accounts() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const userId = user?.id;
 
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -98,6 +98,11 @@ export default function Accounts() {
     setError(null);
     setSuccess(null);
 
+    if (!userId) {
+      setError("User authentication required. Please refresh and try again.");
+      return;
+    }
+
     if (
       !form.accountName ||
       !form.businessAccountId ||
@@ -150,6 +155,11 @@ export default function Accounts() {
 
   const handleVerifyAccount = async (accountId: string) => {
     try {
+      if (!userId) {
+        setError("User authentication required. Please refresh and try again.");
+        return;
+      }
+
       setVerifying(accountId);
       setError(null);
 
@@ -201,6 +211,11 @@ export default function Accounts() {
 
   const handleDeleteAccount = async (accountId: string) => {
     if (!confirm("Are you sure you want to delete this account?")) {
+      return;
+    }
+
+    if (!userId) {
+      setError("User authentication required. Please refresh and try again.");
       return;
     }
 
