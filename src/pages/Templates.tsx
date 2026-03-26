@@ -175,6 +175,30 @@ export default function Templates() {
     }
   };
 
+  const handleApproveLocally = async (id: string) => {
+    try {
+      setSubmitting(id);
+      setError(null);
+      const response = await fetch(`${API_URL}/api/templates/${id}/approve-locally`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setTemplateList(templateList.map((t) => (t._id === id ? data.template : t)));
+        setSuccess("✅ Template approved and ready to use in campaigns!");
+        setTimeout(() => setSuccess(null), 3000);
+      } else {
+        setError(data.message);
+      }
+    } catch (err) {
+      setError("Failed to approve template");
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
   const handleCheckStatus = async (id: string) => {
     try {
       setCheckingStatus(id);
@@ -334,6 +358,16 @@ export default function Templates() {
                               >
                                 {submitting === t._id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                               </button>
+                              {t.status !== 'APPROVED' && (
+                                <button
+                                  onClick={() => handleApproveLocally(t._id)}
+                                  disabled={submitting === t._id}
+                                  className="p-1.5 rounded-md text-green-600 hover:bg-green-500/10 transition-colors disabled:opacity-50"
+                                  title="Approve locally for immediate use"
+                                >
+                                  {submitting === t._id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                                </button>
+                              )}
                             </>
                           ) : (
                             <button

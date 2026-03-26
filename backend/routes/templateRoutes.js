@@ -78,6 +78,38 @@ router.post('/', async (req, res) => {
 });
 
 /**
+ * POST /api/templates/:id/approve-locally
+ * Approve template locally (without Meta submission)
+ */
+router.post('/:id/approve-locally', async (req, res) => {
+  try {
+    const template = await Template.findById(req.params.id);
+    if (!template) {
+      return res.status(404).json({ success: false, message: 'Template not found' });
+    }
+
+    // Mark as approved locally without Meta submission
+    template.status = 'APPROVED';
+    template.metaStatus = 'APPROVED';
+    template.submittedToMeta = false; // Not actually submitted to Meta
+    template.updatedAt = new Date();
+
+    await template.save();
+
+    console.log(`[Template] Marked as approved locally: ${template.name}`);
+
+    res.json({
+      success: true,
+      message: 'Template marked as APPROVED and ready to use in campaigns',
+      template,
+    });
+  } catch (error) {
+    console.error('[Template] Error approving template:', error.message);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
  * POST /api/templates/:id/submit-to-meta
  * Submit template to Meta for approval
  */
