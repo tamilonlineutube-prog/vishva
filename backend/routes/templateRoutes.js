@@ -367,4 +367,87 @@ router.post('/batch/check-all-status', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/templates/meta/fetch-all
+ * Fetch all templates from Meta Business Account
+ */
+router.get('/meta/fetch-all', async (req, res) => {
+  try {
+    const { businessAccountId, accessToken } = getMetaCredentials();
+
+    if (!businessAccountId || !accessToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'Meta credentials not configured',
+      });
+    }
+
+    console.log('[Template] Fetching all templates from Meta...');
+
+    const response = await axios.get(
+      `${META_GRAPH_API}/${META_API_VERSION}/${businessAccountId}/message_templates`,
+      {
+        params: {
+          fields: 'id,name,status,category,language,created_timestamp',
+          access_token: accessToken,
+        },
+      }
+    );
+
+    const metaTemplates = response.data.data || [];
+    console.log(`[Template] Found ${metaTemplates.length} templates on Meta`);
+
+    // Check which ones are already in our database
+    const imported = [];
+    const skipped = [];
+
+    for (const metaTemplate of metaTemplates) {
+      const existing = await Template.findOne({ metaTemplateId: metaTemplate.id });
+
+      if (existing) {
+        skipped.push({
+          name: metaTemplate.name,
+          status: metaTemplate.status,
+          reason: 'Already imported',
+        });
+      } else {
+        // Import this template
+        const newTemplate = new Template({
+          name: metaTemplate.name,
+          metaTemplateId: metaTemplate.id,
+          category: metaTemplate.category || 'MARKETING',
+          body: '(Imported from Meta - edit to view full content)',
+          status: metaTemplate.status === 'APPROVED' ? 'APPROVED' : 'PENDING_REVIEW',
+          metaStatus: metaTemplate.status,
+          submittedToMeta: true,
+          submittedAt: new Date(metaTemplate.created_timestamp * 1000),
+          lastStatusCheck: new Date(),
+        });
+
+        await newTemplate.save();
+        imported.push({
+          _id: newTemplate._id,
+          name: newTemplate.name,
+          status: newTemplate.status,
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Imported ${imported.length} new templates from Meta, ${skipped.length} already exist`,
+      imported,
+      skipped,
+      templates: await Template.find(),
+    });
+  } catch (error) {
+    console.error('[Template] Error fetching from Meta:', error.response?.data || error.message);
+    res.status(error.response?.status || 500).json({
+      success: false,
+      message: `Failed to fetch templates from Meta: ${error.message}`,
+      error: error.response?.data?.error,
+    });
+  }
+});
+
 module.exports = router;

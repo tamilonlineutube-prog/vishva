@@ -32,6 +32,7 @@ export default function Templates() {
   const [editId, setEditId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [checkingStatus, setCheckingStatus] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
   const [editData, setEditData] = useState<TemplateForm>({ name: "", category: "MARKETING", body: "" });
   const [createData, setCreateData] = useState<TemplateForm>({ name: "", category: "MARKETING", body: "" });
   const [error, setError] = useState<string | null>(null);
@@ -198,6 +199,28 @@ export default function Templates() {
     }
   };
 
+  const handleImportFromMeta = async () => {
+    try {
+      setImporting(true);
+      setError(null);
+      const response = await fetch(`${API_URL}/api/templates/meta/fetch-all`);
+
+      const data = await response.json();
+      if (data.success) {
+        setTemplateList(data.templates);
+        const msg = `Imported ${data.imported.length} new templates from Meta. ${data.skipped.length} were already imported.`;
+        setSuccess(msg);
+        setTimeout(() => setSuccess(null), 5000);
+      } else {
+        setError(data.message);
+      }
+    } catch (err) {
+      setError("Failed to import templates from Meta");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const statusIcon = (status: string) => {
     if (status === "APPROVED") return <CheckCircle2 className="w-3 h-3" />;
     if (status === "REJECTED") return <XCircle className="w-3 h-3" />;
@@ -224,12 +247,22 @@ export default function Templates() {
             <p className="text-sm text-muted-foreground">Manage and submit WhatsApp templates to Meta for approval</p>
             <p className="text-xs text-muted-foreground mt-1">Status updates automatically every 30 seconds</p>
           </div>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity active:scale-[0.97]"
-          >
-            <Plus className="w-4 h-4" /> Create Template
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleImportFromMeta}
+              disabled={importing}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-secondary text-secondary-foreground hover:opacity-90 transition-opacity active:scale-[0.97] disabled:opacity-50"
+            >
+              {importing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Import from Meta
+            </button>
+            <button
+              onClick={() => setShowCreate(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity active:scale-[0.97]"
+            >
+              <Plus className="w-4 h-4" /> Create Template
+            </button>
+          </div>
         </div>
 
         {/* Template List */}
