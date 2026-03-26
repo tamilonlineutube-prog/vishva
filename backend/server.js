@@ -43,10 +43,7 @@ const connectDB = async () => {
       throw new Error('MONGODB_URI environment variable is not set');
     }
     
-    const conn = await mongoose.connect(mongoUri, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    const conn = await mongoose.connect(mongoUri);
     console.log(`✓ MongoDB connected: ${conn.connection.host}`);
   } catch (error) {
     console.error(`✗ MongoDB connection failed: ${error.message}`);
