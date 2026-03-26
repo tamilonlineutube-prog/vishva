@@ -9,6 +9,10 @@ interface TemplateForm {
   body: string;
 }
 
+interface TemplateCreateForm extends TemplateForm {
+  status: "Approved" | "Pending" | "Rejected";
+}
+
 const TEMPLATES_STORAGE_KEY = "whatsapp_templates";
 
 export default function Templates() {
@@ -16,7 +20,7 @@ export default function Templates() {
   const [preview, setPreview] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [editData, setEditData] = useState<TemplateForm>({ name: "", category: "Marketing", body: "" });
-  const [createData, setCreateData] = useState<TemplateForm>({ name: "", category: "Marketing", body: "" });
+  const [createData, setCreateData] = useState<TemplateCreateForm>({ name: "", category: "Marketing", body: "", status: "Approved" });
   const [templateList, setTemplateList] = useState(() => {
     const saved = localStorage.getItem(TEMPLATES_STORAGE_KEY);
     return saved ? JSON.parse(saved) : defaultTemplates;
@@ -55,13 +59,15 @@ export default function Templates() {
     }
     const newTemplate = {
       id: Date.now().toString(),
-      ...createData,
-      status: "Pending" as const,
+      name: createData.name,
+      category: createData.category,
+      body: createData.body,
+      status: createData.status,
       updatedAt: new Date().toISOString().split("T")[0],
     };
     setTemplateList([...templateList, newTemplate]);
     setShowCreate(false);
-    setCreateData({ name: "", category: "Marketing", body: "" });
+    setCreateData({ name: "", category: "Marketing", body: "", status: "Approved" });
   };
 
   const handleDelete = (id: string) => {
@@ -233,16 +239,30 @@ export default function Templates() {
                     className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20" 
                   />
                 </div>
-                <div>
-                  <label className="text-xs font-medium text-foreground mb-1.5 block">Category</label>
-                  <select 
-                    value={createData.category}
-                    onChange={(e) => setCreateData({ ...createData, category: e.target.value as "Marketing" | "Utility" })}
-                    className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20"
-                  >
-                    <option>Marketing</option>
-                    <option>Utility</option>
-                  </select>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-foreground mb-1.5 block">Category</label>
+                    <select 
+                      value={createData.category}
+                      onChange={(e) => setCreateData({ ...createData, category: e.target.value as "Marketing" | "Utility" })}
+                      className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20"
+                    >
+                      <option>Marketing</option>
+                      <option>Utility</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-foreground mb-1.5 block">Status</label>
+                    <select 
+                      value={createData.status}
+                      onChange={(e) => setCreateData({ ...createData, status: e.target.value as "Approved" | "Pending" | "Rejected" })}
+                      className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20"
+                    >
+                      <option>Approved</option>
+                      <option>Pending</option>
+                      <option>Rejected</option>
+                    </select>
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs font-medium text-foreground mb-1.5 block">Message Body</label>
