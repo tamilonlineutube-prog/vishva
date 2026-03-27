@@ -150,6 +150,8 @@ router.post('/:id/verify', async (req, res) => {
 // Helper function to verify credentials with Meta API
 async function verifyAccountCredentials(account) {
   try {
+    console.log(`[Verify] Attempting to verify account: ${account.phoneNumberId}`);
+    
     const response = await axios.get(
       `https://graph.instagram.com/v18.0/${account.phoneNumberId}`,
       {
@@ -159,6 +161,8 @@ async function verifyAccountCredentials(account) {
         },
       }
     );
+
+    console.log(`[Verify] Success:`, response.data);
 
     account.isVerified = true;
     account.verificationStatus = 'VERIFIED';
@@ -176,7 +180,10 @@ async function verifyAccountCredentials(account) {
       displayPhoneNumber: response.data.display_phone_number,
     };
   } catch (error) {
-    console.error('Meta API verification error:', error.response?.data || error.message);
+    console.error('[Verify] Meta API error:');
+    console.error('  Status:', error.response?.status);
+    console.error('  Data:', JSON.stringify(error.response?.data, null, 2));
+    console.error('  Message:', error.message);
 
     account.isVerified = false;
     account.verificationStatus = 'FAILED';
