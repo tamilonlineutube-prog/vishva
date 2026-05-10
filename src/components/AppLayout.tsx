@@ -12,6 +12,7 @@ import {
   MessageCircle,
   LogOut,
   Database,
+  Send,
 } from "lucide-react";
 
 const navItems = [
@@ -19,6 +20,7 @@ const navItems = [
   { title: "Inbox", url: "/inbox", icon: MessageSquare },
   { title: "Campaigns", url: "/campaigns", icon: Megaphone },
   { title: "Templates", url: "/templates", icon: FileText },
+  { title: "Send Message", url: "/send-message", icon: Send },
   { title: "Accounts", url: "/accounts", icon: Database },
   { title: "Contacts", url: "/contacts", icon: Users },
   { title: "Settings", url: "/settings", icon: Settings },
