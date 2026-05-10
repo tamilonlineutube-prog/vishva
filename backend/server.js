@@ -11,6 +11,7 @@ const webhookRoutes = require('./routes/webhookRoutes');
 const templateRoutes = require('./routes/templateRoutes');
 const accountRoutes = require('./routes/accountRoutes');
 const messageRoutes = require('./routes/messageRoutes');
+const conversationRoutes = require('./routes/conversationRoutes');
 
 // Load environment variables
 dotenv.config();
@@ -318,6 +319,9 @@ app.use('/api/accounts', accountRoutes);
 
 // Message routes (WhatsApp Message Sending)
 app.use('/api/messages', messageRoutes);
+
+// Conversation routes (Chat Management)
+app.use('/api/conversations', conversationRoutes);
 
 // Socket.io Connection Handling
 io.on('connection', (socket) => {
