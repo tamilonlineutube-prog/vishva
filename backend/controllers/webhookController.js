@@ -1,5 +1,6 @@
 const Message = require('../models/Message');
 const Conversation = require('../models/Conversation');
+const Account = require('../models/Account');
 
 // Webhook verification token (change this to your secure token)
 const WEBHOOK_VERIFY_TOKEN = process.env.WHATSAPP_WEBHOOK_TOKEN || 'your-webhook-token-123';
@@ -55,13 +56,17 @@ const handleIncomingMessage = async (req, res, io) => {
       if (!entry.changes || !Array.isArray(entry.changes)) continue;
 
       for (const change of entry.changes) {
-        if (!change.value || !change.value.messages) continue;
+        if (!change.value) continue;
 
         const messageData = change.value;
+        const phoneNumberId = messageData.metadata?.phone_number_id;
+        const businessAccountId = messageData.metadata?.business_account_id;
+
+        console.log(`[Webhook] Processing message from phone_number_id: ${phoneNumberId}`);
 
         // Process each message
         for (const msg of messageData.messages || []) {
-          await processIncomingMessage(msg, messageData, io);
+          await processIncomingMessage(msg, messageData, phoneNumberId, businessAccountId, io);
         }
 
         // Process status updates (delivery, read, etc.)
@@ -79,7 +84,7 @@ const handleIncomingMessage = async (req, res, io) => {
 /**
  * Process individual incoming message
  */
-const processIncomingMessage = async (msg, messageData, io) => {
+const processIncomingMessage = async (msg, messageData, phoneNumberId, businessAccountId, io) => {
   try {
     const {
       from, // Phone number
@@ -101,6 +106,15 @@ const processIncomingMessage = async (msg, messageData, io) => {
     console.log(`[Webhook] Incoming message from ${from}`);
     console.log(`  ID: ${id}`);
     console.log(`  Type: ${type}`);
+
+    // Find the account by phone_number_id
+    let account = null;
+    if (phoneNumberId) {
+      account = await Account.findOne({ phoneNumberId });
+      if (account) {
+        console.log(`[Webhook] Associated with account: ${account.accountName}`);
+      }
+    }
 
     // Extract message content based on type
     let content = '';
@@ -137,12 +151,13 @@ const processIncomingMessage = async (msg, messageData, io) => {
     // Get or create conversation
     let conversation = await Conversation.findOne({
       customerId: from,
+      userId: account?.userId, // Filter by account owner
     });
 
     if (!conversation) {
       console.log(`[Webhook] Creating new conversation for ${from}`);
       conversation = await Conversation.create({
-        userId: null, // TODO: Get from auth or request
+        userId: account?.userId || null, // Link to account owner
         customerId: from,
         customerName: messageData.contacts?.[0]?.profile?.name || from,
         customerPhone: from,
