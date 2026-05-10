@@ -151,13 +151,15 @@ router.post('/:id/verify', async (req, res) => {
 async function verifyAccountCredentials(account) {
   try {
     console.log(`[Verify] Attempting to verify account: ${account.phoneNumberId}`);
+    console.log(`[Verify] Business Account ID: ${account.businessAccountId}`);
     
+    // Try to fetch phone number details through the business account
     const response = await axios.get(
-      `https://graph.instagram.com/v18.0/${account.phoneNumberId}`,
+      `https://graph.instagram.com/v18.0/${account.businessAccountId}/phone_numbers`,
       {
         params: {
           access_token: account.whatsappAccessToken,
-          fields: 'verified_name,display_phone_number,quality_rating',
+          fields: 'id,phone_number_id,display_phone_number,verified_name,quality_rating',
         },
       }
     );
@@ -166,7 +168,7 @@ async function verifyAccountCredentials(account) {
 
     account.isVerified = true;
     account.verificationStatus = 'VERIFIED';
-    account.verifiedName = response.data.verified_name || null;
+    account.verifiedName = response.data.data?.[0]?.verified_name || null;
     account.verificationError = null;
     account.metaError = null;
     account.lastVerificationCheck = new Date();
@@ -176,8 +178,8 @@ async function verifyAccountCredentials(account) {
     return {
       success: true,
       status: 'VERIFIED',
-      verifiedName: response.data.verified_name,
-      displayPhoneNumber: response.data.display_phone_number,
+      verifiedName: response.data.data?.[0]?.verified_name,
+      displayPhoneNumber: response.data.data?.[0]?.display_phone_number,
     };
   } catch (error) {
     console.error('[Verify] Meta API error:');
