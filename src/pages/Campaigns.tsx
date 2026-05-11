@@ -292,13 +292,11 @@ Vikram Patel,915432109876`;
         body: JSON.stringify({
           templateId: template._id,
           templateName: template.name,
-          templateBody: template.body,
           contacts: contacts.map((c) => ({
             name: c.name,
             phone: c.phone,
           })),
           accountId: selectedAccount,
-          // Note: Backend should use account credentials from database
         }),
       });
 

@@ -104,7 +104,7 @@ app.post('/api/send-message', async (req, res) => {
 // Send WhatsApp campaign to multiple contacts
 app.post('/api/send-campaign', async (req, res) => {
   try {
-    const { contacts, templateName, templateBody, accountId } = req.body;
+    const { contacts, templateName, templateId, accountId } = req.body;
 
     if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
       return res.status(400).json({
@@ -112,9 +112,9 @@ app.post('/api/send-campaign', async (req, res) => {
       });
     }
 
-    if (!templateName || !templateBody) {
+    if (!templateName) {
       return res.status(400).json({
-        error: 'Missing required fields: templateName, templateBody',
+        error: 'Missing required fields: templateName',
       });
     }
 
@@ -165,34 +165,35 @@ app.post('/api/send-campaign', async (req, res) => {
         const metaFormattedPhone = String(phone).replace(/\D/g, '');
         
         if (!metaFormattedPhone || metaFormattedPhone.length < 7) {
-          console.log(`   ⚠️  Skipping contact with invalid phone: ${name} (${phone}) - too short after cleaning: ${metaFormattedPhone}`);
+          console.log(`   ⚠️  Skipping contact with invalid phone: ${name} (${phone}) - too short`);
           failureCount++;
-          failedContacts.push({ name, phone, reason: `Phone number too short (${metaFormattedPhone.length} digits)` });
+          failedContacts.push({ name, phone, reason: `Phone too short (${metaFormattedPhone.length} digits)` });
           continue;
         }
 
         if (metaFormattedPhone.length > 15) {
-          console.log(`   ⚠️  Skipping contact with invalid phone: ${name} (${phone}) - too long after cleaning: ${metaFormattedPhone}`);
+          console.log(`   ⚠️  Skipping contact with invalid phone: ${name} (${phone}) - too long`);
           failureCount++;
-          failedContacts.push({ name, phone, reason: `Phone number too long (${metaFormattedPhone.length} digits)` });
+          failedContacts.push({ name, phone, reason: `Phone too long (${metaFormattedPhone.length} digits)` });
           continue;
         }
 
-        // Create message with contact name
-        const message = templateBody.replace(/{{\s*name\s*}}/g, name || 'User');
-
-        // Send via Meta WhatsApp API
+        // Send via Meta WhatsApp API using template
+        // NOTE: Using template messaging (better delivery for approved templates)
         try {
           console.log(`   📤 Sending to ${name} (${metaFormattedPhone}) via Meta API...`);
           
           const response = await axios.post(
-            `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
+            `https://graph.facebook.com/v25.0/${phoneNumberId}/messages`,
             {
               messaging_product: 'whatsapp',
               to: metaFormattedPhone,
-              type: 'text',
-              text: {
-                body: message,
+              type: 'template',
+              template: {
+                name: templateName.toLowerCase().replace(/\s+/g, '_'),
+                language: {
+                  code: 'en_US',
+                },
               },
             },
             {
@@ -209,7 +210,7 @@ app.post('/api/send-campaign', async (req, res) => {
           io.emit('new_message', {
             from: account.accountName,
             to: metaFormattedPhone,
-            message: message,
+            message: `Template: ${templateName}`,
             timestamp: new Date().toISOString(),
             status: 'sent',
             contactName: name,
@@ -230,6 +231,7 @@ app.post('/api/send-campaign', async (req, res) => {
             status: apiError.response?.status,
             message: apiError.response?.data?.error?.message || apiError.message,
             code: apiError.response?.data?.error?.code,
+            details: apiError.response?.data,
           });
           failureCount++;
           failedContacts.push({ 
