@@ -104,7 +104,7 @@ app.post('/api/send-message', async (req, res) => {
 // Send WhatsApp campaign to multiple contacts
 app.post('/api/send-campaign', async (req, res) => {
   try {
-    const { contacts, templateName, templateBody, accessToken, phoneNumberId } = req.body;
+    const { contacts, templateName, templateBody, accountId } = req.body;
 
     if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
       return res.status(400).json({
@@ -118,12 +118,31 @@ app.post('/api/send-campaign', async (req, res) => {
       });
     }
 
+    if (!accountId) {
+      return res.status(400).json({
+        error: 'Missing accountId',
+      });
+    }
+
+    // Fetch account credentials from database
+    const Account = require('./models/Account');
+    const account = await Account.findById(accountId);
+
+    if (!account) {
+      return res.status(404).json({
+        error: 'Account not found',
+      });
+    }
+
+    const accessToken = account.whatsappAccessToken;
+    const phoneNumberId = account.phoneNumberId;
+
     console.log(`\n📨 [Campaign] Starting campaign send`);
+    console.log(`   Account: ${account.accountName}`);
     console.log(`   Template: ${templateName}`);
     console.log(`   Contacts: ${contacts.length}`);
-    console.log(`   Access Token: ${accessToken ? accessToken.substring(0, 20) + '...' : 'NOT PROVIDED'}`);
-    console.log(`   Phone Number ID: ${phoneNumberId ? phoneNumberId : 'NOT PROVIDED'}`);
-    console.log(`   Using Meta API: ${accessToken && phoneNumberId ? 'YES' : 'NO (simulation only)'}`);
+    console.log(`   Phone ID: ${phoneNumberId}`);
+    console.log(`   Using Meta API: YES`);
 
     let successCount = 0;
     let failureCount = 0;
@@ -162,79 +181,43 @@ app.post('/api/send-campaign', async (req, res) => {
         // Create message with contact name
         const message = templateBody.replace(/{{\s*name\s*}}/g, name || 'User');
 
-        // If WhatsApp API credentials provided, send via Meta API
-        if (accessToken && phoneNumberId) {
-          try {
-            console.log(`   📤 Sending to ${name} (${metaFormattedPhone}) via Meta API...`);
-            
-            const response = await axios.post(
-              `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
-              {
-                messaging_product: 'whatsapp',
-                to: metaFormattedPhone,
-                type: 'text',
-                text: {
-                  body: message,
-                },
-              },
-              {
-                headers: {
-                  Authorization: `Bearer ${accessToken}`,
-                  'Content-Type': 'application/json',
-                },
-              }
-            );
-
-            console.log(`   ✓ Message sent to ${metaFormattedPhone}: ${response.data.messages[0].id}`);
-
-            // Emit real-time update to connected clients
-            io.emit('new_message', {
-              from: name,
+        // Send via Meta WhatsApp API
+        try {
+          console.log(`   📤 Sending to ${name} (${metaFormattedPhone}) via Meta API...`);
+          
+          const response = await axios.post(
+            `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,
+            {
+              messaging_product: 'whatsapp',
               to: metaFormattedPhone,
-              message: message,
-              timestamp: new Date().toISOString(),
-              status: 'sent',
-              contactName: name,
-              templateName: templateName,
-              messageId: response.data.messages[0].id,
-            });
+              type: 'text',
+              text: {
+                body: message,
+              },
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
 
-            // Also emit for dashboard metrics
-            io.emit('message_sent', {
-              phone: metaFormattedPhone,
-              name: name,
-              timestamp: new Date().toISOString(),
-            });
+          console.log(`   ✓ Message sent to ${metaFormattedPhone}: ${response.data.messages[0].id}`);
 
-            successCount++;
-          } catch (apiError) {
-            console.error(`   ✗ Meta API error for ${name} (${metaFormattedPhone}):`, {
-              status: apiError.response?.status,
-              message: apiError.response?.data?.error?.message || apiError.message,
-              code: apiError.response?.data?.error?.code,
-            });
-            failureCount++;
-            failedContacts.push({ 
-              name, 
-              phone: metaFormattedPhone, 
-              reason: apiError.response?.data?.error?.message || apiError.message 
-            });
-          }
-        } else {
-          // Fallback: Just emit via Socket.io for simulation
-          console.log(`   ✅ Simulating message to ${name} (${metaFormattedPhone}) [No API credentials]`);
-
+          // Emit real-time update to connected clients
           io.emit('new_message', {
-            from: name,
+            from: account.accountName,
             to: metaFormattedPhone,
             message: message,
             timestamp: new Date().toISOString(),
             status: 'sent',
             contactName: name,
             templateName: templateName,
-            simulation: true,
+            messageId: response.data.messages[0].id,
           });
 
+          // Also emit for dashboard metrics
           io.emit('message_sent', {
             phone: metaFormattedPhone,
             name: name,
@@ -242,7 +225,18 @@ app.post('/api/send-campaign', async (req, res) => {
           });
 
           successCount++;
-          console.log(`   ✓ Simulated message added to queue`);
+        } catch (apiError) {
+          console.error(`   ✗ Meta API error for ${name} (${metaFormattedPhone}):`, {
+            status: apiError.response?.status,
+            message: apiError.response?.data?.error?.message || apiError.message,
+            code: apiError.response?.data?.error?.code,
+          });
+          failureCount++;
+          failedContacts.push({ 
+            name, 
+            phone: metaFormattedPhone, 
+            reason: apiError.response?.data?.error?.message || apiError.message 
+          });
         }
       } catch (contactError) {
         console.error(`   ✗ Error processing contact ${contact.name}:`, contactError.message);
