@@ -390,10 +390,7 @@ Vikram Patel,915432109876`;
                   <label className="text-sm font-medium text-foreground">Select Account</label>
                   <select
                     value={selectedAccount || ""}
-                    onChange={(e) => {
-                      setSelectedAccount(e.target.value);
-                      setStep(1);
-                    }}
+                    onChange={(e) => setSelectedAccount(e.target.value)}
                     className="w-full px-3 py-2.5 text-sm rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring/20"
                   >
                     <option value="">Choose an account...</option>
@@ -403,6 +400,13 @@ Vikram Patel,915432109876`;
                       </option>
                     ))}
                   </select>
+                  <button
+                    onClick={() => setStep(1)}
+                    disabled={!selectedAccount}
+                    className="w-full px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
                 </div>
               )}
 
