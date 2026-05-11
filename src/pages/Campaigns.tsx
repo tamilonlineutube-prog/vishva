@@ -246,7 +246,6 @@ Vikram Patel,915432109876`;
 
         console.log(`[CSV] Successfully parsed ${parsedContacts.length} valid contacts out of ${dataLines.length} lines`);
         setContacts(parsedContacts);
-        setStep(1); // Move to next step after upload
       } catch (error) {
         console.error("[CSV] Error reading file:", error);
         alert(`Error reading file: ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -450,6 +449,13 @@ Vikram Patel,915432109876`;
                       className="px-4 py-2 text-sm font-medium rounded-lg border border-input text-foreground hover:bg-secondary transition-colors"
                     >
                       Back
+                    </button>
+                    <button
+                      onClick={() => setStep(2)}
+                      disabled={contacts.length === 0}
+                      className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
                     </button>
                   </div>
                 </div>
