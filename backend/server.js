@@ -141,18 +141,6 @@ app.post('/api/send-campaign', async (req, res) => {
           continue;
         }
 
-    // Send message to each contact
-    for (const contact of contacts) {
-      try {
-        const { name, phone } = contact;
-
-        if (!phone) {
-          console.log(`   ⚠️  Skipping contact with empty phone: ${name}`);
-          failureCount++;
-          failedContacts.push({ name, phone, reason: 'Empty phone number' });
-          continue;
-        }
-
         // For Meta API, phone must be digits only (E.164 format without +)
         // E.g., 919876543210 (not +91 98765 43210)
         const metaFormattedPhone = String(phone).replace(/\D/g, '');
@@ -256,12 +244,6 @@ app.post('/api/send-campaign', async (req, res) => {
           successCount++;
           console.log(`   ✓ Simulated message added to queue`);
         }
-      } catch (contactError) {
-        console.error(`   ✗ Error processing contact ${contact.name}:`, contactError.message);
-        failureCount++;
-        failedContacts.push({ name: contact.name, phone: contact.phone, reason: contactError.message });
-      }
-    }
       } catch (contactError) {
         console.error(`   ✗ Error processing contact ${contact.name}:`, contactError.message);
         failureCount++;
